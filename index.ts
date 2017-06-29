@@ -4,6 +4,7 @@ import { Point, Edge, Polygon } from './geometry';
 import District from "./district";
 import * as Random from 'rng';
 import { renderCoast, renderRiver } from './render';
+import * as PriorityQueue from 'priorityqueuejs';
 
 /**
  * From SO post: https://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript/901144#901144
@@ -65,19 +66,13 @@ function pickWeighted<T>(items: T[], weightFunc: (item: T) => number): T {
 
 function findPath(graph: {[point: string]: Point[]}, start: Point, target: Point): Point[] {
 	// Dijkstra's algorithm, only runs until target found
-	let q = [];
 	let dist = {};
 	let prev = {};
-	for (let key of Object.keys(graph)) {
-		let vertex = key.split(',').map(parseFloat); // assumes keys are stringified points
-		q.push(vertex);
-		dist[vertex.toString()] = Infinity;
-		prev[vertex.toString()] = null;
-	}
+	const q = new PriorityQueue((a, b) => dist[b] - dist[a])
 	dist[start.toString()] = 0;
-	while (q.length) {
-		q.sort((a, b) => dist[a] - dist[b]);
-		let current = q.shift();
+	q.enq(start);
+	while (!q.isEmpty()) {
+		let current = q.deq();
 		if (current[0] === target[0] && current[1] === target[1]) {
 			let path = [];
 			while (current) {
@@ -91,9 +86,11 @@ function findPath(graph: {[point: string]: Point[]}, start: Point, target: Point
 			let dy = neighbor[1] - current[1];
 			let distToNeighbor = Math.pow(Math.pow(dx, 2) + Math.pow(dy, 2), 0.5);
 			let newDist = dist[current] + distToNeighbor;
-			if (newDist < dist[neighbor.toString()]) {
-				dist[neighbor.toString()] = newDist;
-				prev[neighbor.toString()] = current;
+			let neighborString = neighbor.toString();
+			if (!dist.hasOwnProperty(neighborString) || newDist < dist[neighborString]) {
+				dist[neighborString] = newDist;
+				prev[neighborString] = current;
+				q.enq(neighbor)
 			}
 		}
 	}
