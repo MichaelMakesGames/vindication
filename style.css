@@ -1,0 +1,82 @@
+body {
+  margin: 0;
+}
+
+svg {
+  fill: white;
+  background-color:beige;
+  width: 100%;
+  height: auto;
+}
+
+.building {
+  stroke-width: 2;
+  stroke: #444;
+  fill: #888;
+}
+
+.urban-block {
+  fill: url(#building);
+  stroke: #444;
+  stroke-width: 2;
+}
+
+.field1 {
+  stroke: rgb(100, 150, 50);
+  stroke-width: 1;
+  fill: url(#field1);
+}
+
+.field2 {
+  stroke: rgb(100, 150, 50);
+  stroke-width: 1;
+  fill: url(#field2)
+}
+
+.field3 {
+  stroke: rgb(100, 150, 50);
+  stroke-width: 1;
+  fill: url(#field3)
+}
+
+.square {
+}
+
+.courtyard {
+  fill: white;
+  stroke-width: 2;
+  stroke: #444;
+}
+
+.avenue {
+  fill: url(#avenue);
+}
+
+.river-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke: rgb(100, 100, 200);
+}
+
+.river {
+  fill: none;
+  stroke-linecap: round;
+  stroke: rgb(200, 200, 255);
+}
+
+.water {
+  animation-name: wave;
+  animation-fill-mode: backwards;
+  animation-direction: alternate;
+  animation-iteration-count: infinite;
+}
+
+
+@keyframes wave {
+  from {
+    fill: rgb(205, 205, 255);
+  }
+  to {
+    fill: rgb(195, 195, 255);
+  }
+}
