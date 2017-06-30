@@ -18639,7 +18639,7 @@ function pickWeighted(items, weightFunc) {
     }
     throw new Error();
 }
-function findPath(graph, start, target) {
+function findPath(graph, distanceFunc, start, target) {
     // Dijkstra's algorithm, only runs until target found
     var dist = {};
     var prev = {};
@@ -18658,9 +18658,7 @@ function findPath(graph, start, target) {
         }
         for (var _i = 0, _a = graph[current]; _i < _a.length; _i++) {
             var neighbor = _a[_i];
-            var dx = neighbor[0] - current[0];
-            var dy = neighbor[1] - current[1];
-            var distToNeighbor = Math.pow(Math.pow(dx, 2) + Math.pow(dy, 2), 0.5);
+            var distToNeighbor = distanceFunc(current, neighbor);
             var newDist = dist[current] + distToNeighbor;
             var neighborString = neighbor.toString();
             if (!dist.hasOwnProperty(neighborString) || newDist < dist[neighborString]) {
@@ -18671,14 +18669,22 @@ function findPath(graph, start, target) {
         }
     }
 }
-function connectDistricts(start, end, graph) {
+function connectDistricts(start, end, graph, curRoads) {
     var startPoint = geometry.getPointClosestTo(start.polygon, end.site);
     if (!start.roadEnds.includes(startPoint))
         start.roadEnds.push(startPoint);
     var endPoint = geometry.getPointClosestTo(end.polygon, start.site);
     if (!end.roadEnds.includes(endPoint))
         end.roadEnds.push(endPoint);
-    var path = findPath(graph, startPoint, endPoint);
+    function distance(a, b) {
+        if (curRoads.some(function (road) { return geometry.areEdgesEquivalent(road, [a, b]); })) {
+            return geometry.calcDistance(a, b) * 0.5;
+        }
+        else {
+            return geometry.calcDistance(a, b);
+        }
+    }
+    var path = findPath(graph, distance, startPoint, endPoint);
     var roads = geometry.getPolygonEdges(path);
     roads.pop();
     return roads;
@@ -18699,9 +18705,9 @@ function createRoads(districts, diagram, graph) {
         // 	.attr('stroke', 'red')
         // 	.attr('stroke-width', 2);
         var triangleDistricts = triangle.map(function (site) { return districts.find(function (d) { return site.toString() === d.site.toString(); }); });
-        roads.push.apply(roads, connectDistricts(triangleDistricts[0], triangleDistricts[1], graph));
-        roads.push.apply(roads, connectDistricts(triangleDistricts[1], triangleDistricts[2], graph));
-        roads.push.apply(roads, connectDistricts(triangleDistricts[2], triangleDistricts[0], graph));
+        roads.push.apply(roads, connectDistricts(triangleDistricts[0], triangleDistricts[1], graph, roads));
+        roads.push.apply(roads, connectDistricts(triangleDistricts[1], triangleDistricts[2], graph, roads));
+        roads.push.apply(roads, connectDistricts(triangleDistricts[2], triangleDistricts[0], graph, roads));
     }
     return roads;
 }
@@ -18836,7 +18842,7 @@ function generateMap() {
         var destination = intersections
             .filter(function (p) { return p[1] === HEIGHT + SITE_GRID_SIZE * 2; })
             .sort(function (a, b) { return Math.abs(a[0] - WIDTH / 2) - Math.abs(b[0] - WIDTH / 2); })[0];
-        var path = findPath(intersectionGraph, origin, destination);
+        var path = findPath(intersectionGraph, function (a, b) { return geometry.calcDistance(a, b); }, origin, destination);
         var edges = path.map(function (p, i) { return [p, path[(i + 1) % path.length]]; });
         edges = edges.filter(function isEdgeNotInOcean(edge) {
             var vEdge = diagram.edges.filter(Boolean).find(function (vEdge) {
