@@ -64,7 +64,7 @@ function pickWeighted<T>(items: T[], weightFunc: (item: T) => number): T {
 	throw new Error();
 }
 
-function findPath(graph: {[point: string]: Point[]}, start: Point, target: Point): Point[] {
+function findPath(graph: {[point: string]: Point[]}, distanceFunc: (from: Point, to: Point) => number, start: Point, target: Point): Point[] {
 	// Dijkstra's algorithm, only runs until target found
 	let dist = {};
 	let prev = {};
@@ -82,9 +82,7 @@ function findPath(graph: {[point: string]: Point[]}, start: Point, target: Point
 			return path;
 		}
 		for (let neighbor of graph[current]) {
-			let dx = neighbor[0] - current[0];
-			let dy = neighbor[1] - current[1];
-			let distToNeighbor = Math.pow(Math.pow(dx, 2) + Math.pow(dy, 2), 0.5);
+			let distToNeighbor = distanceFunc(current, neighbor);
 			let newDist = dist[current] + distToNeighbor;
 			let neighborString = neighbor.toString();
 			if (!dist.hasOwnProperty(neighborString) || newDist < dist[neighborString]) {
@@ -96,14 +94,21 @@ function findPath(graph: {[point: string]: Point[]}, start: Point, target: Point
 	}
 }
 
-function connectDistricts(start: District, end: District, graph: {[point: string]: Point[]}): Edge[] {
+function connectDistricts(start: District, end: District, graph: {[point: string]: Point[]}, curRoads: Edge[]): Edge[] {
 
 	let startPoint = geometry.getPointClosestTo(start.polygon, end.site);
 	if (!start.roadEnds.includes(startPoint)) start.roadEnds.push(startPoint);
 	let endPoint = geometry.getPointClosestTo(end.polygon, start.site);
 	if (!end.roadEnds.includes(endPoint)) end.roadEnds.push(endPoint);
 
-	let path: Point[] = findPath(graph, startPoint, endPoint);
+	function distance(a: Point, b: Point): number {
+		if (curRoads.some(road => geometry.areEdgesEquivalent(road, [a, b]))) {
+			return geometry.calcDistance(a, b) * 0.5;
+		} else {
+			return geometry.calcDistance(a, b);
+		}
+	}
+	let path: Point[] = findPath(graph, distance, startPoint, endPoint);
 	let roads = geometry.getPolygonEdges(path);
 	roads.pop();
 
@@ -129,9 +134,9 @@ function createRoads(districts: District[], diagram: d3.VoronoiDiagram<Point>, g
 		// 	.attr('stroke', 'red')
 		// 	.attr('stroke-width', 2);
 		let triangleDistricts = triangle.map(site => districts.find(d => site.toString() === d.site.toString()));
-		roads.push(...connectDistricts(triangleDistricts[0], triangleDistricts[1], graph));
-		roads.push(...connectDistricts(triangleDistricts[1], triangleDistricts[2], graph));
-		roads.push(...connectDistricts(triangleDistricts[2], triangleDistricts[0], graph));
+		roads.push(...connectDistricts(triangleDistricts[0], triangleDistricts[1], graph, roads));
+		roads.push(...connectDistricts(triangleDistricts[1], triangleDistricts[2], graph, roads));
+		roads.push(...connectDistricts(triangleDistricts[2], triangleDistricts[0], graph, roads));
 	}
 
 	return roads;
@@ -273,7 +278,7 @@ function generateMap() {
 			.filter(p => p[1] === HEIGHT + SITE_GRID_SIZE * 2)
 			.sort((a, b) => Math.abs(a[0] - WIDTH/2) - Math.abs(b[0] - WIDTH/2))
 			[0];
-		let path = findPath(intersectionGraph, origin, destination);
+		let path = findPath(intersectionGraph, (a, b) => geometry.calcDistance(a, b), origin, destination);
 		let edges: Edge[] = path.map((p, i) => [p, path[(i+1) % path.length]]) as Edge[];
 		edges = edges.filter(function isEdgeNotInOcean(edge) {
 			let vEdge = diagram.edges.filter(Boolean).find(vEdge => {
