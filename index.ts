@@ -76,7 +76,7 @@ function findPath(graph: {[point: string]: Point[]}, distanceFunc: (from: Point,
 		if (current[0] === target[0] && current[1] === target[1]) {
 			let path = [];
 			while (current) {
-				path.push(current);
+				path.unshift(current);
 				current = prev[current];
 			}
 			return path;
@@ -240,8 +240,8 @@ function generateMap() {
 	for (let district of districts) {
 		if (district.site[1] > HEIGHT * 0.75) district.type = 'water';
 	}
+	const coastEdges: Edge[] = [];
 	(() => {
-		let coastEdges: Array<Edge> = [];
 		for (let edge of diagram.edges.filter(edge => edge && edge.left && edge.right)) {
 			let leftDistrictType = getDistrictBySite(edge.left).type;
 			let rightDistrictType = getDistrictBySite(edge.right).type;
@@ -267,36 +267,59 @@ function generateMap() {
 	})();
 
 	// make river
-	const riverWidth = Math.floor(rng.random() * 30 + 15)
-	let river = [];
+	const riverWidth = Math.floor(rng.random() * 30 + 30)
+	const subRiverWidth = Math.floor(rng.random() * riverWidth / 3 + riverWidth / 3);
+	const river = [];
+	const subRiver = [];
 	(() => {
 		let origin = intersections
 			.filter(p => p[1] === SITE_GRID_SIZE * -2)
 			.sort((a, b) => Math.abs(a[0] - WIDTH/2) - Math.abs(b[0] - WIDTH/2))
 			[0];
-		let destination = intersections
-			.filter(p => p[1] === HEIGHT + SITE_GRID_SIZE * 2)
-			.sort((a, b) => Math.abs(a[0] - WIDTH/2) - Math.abs(b[0] - WIDTH/2))
+		let destination = coastEdges
+			.map<Point>(e => e[0])
+			// .filter(p => p[1] === HEIGHT + SITE_GRID_SIZE * 2)
+			.sort((a, b) => Math.abs(a[0] - WIDTH/3) - Math.abs(b[0] - WIDTH/3))
 			[0];
 		let path = findPath(intersectionGraph, (a, b) => geometry.calcDistance(a, b), origin, destination);
-		let edges: Edge[] = path.map((p, i) => [p, path[(i+1) % path.length]]) as Edge[];
-		edges = edges.filter(function isEdgeNotInOcean(edge) {
+		river.push(...geometry.getPolygonEdges(path));
+
+		if (true) { // Confluence
+			const index = Math.floor(rng.random() * path.length / 3 + path.length / 3);
+			const subDestination = path[index];
+			const neighborDx = (destination[0] - path[index - 1][0]) + (destination[0] - path[index + 1][0]);
+			const subOriginOptions = coastEdges
+				.map<Point>(e => e[0])
+				// .filter(p => p[1] === SITE_GRID_SIZE * -2)
+				.filter(p => neighborDx > 0 ? p[0] < origin[0] : p[0] > origin[0]);
+			const subOrigin = subOriginOptions
+				.sort((a, b) => Math.abs(a[0] - WIDTH*2/3) - Math.abs(b[0] - WIDTH*2/3))
+				[0];
+			// const subOrigin = subOriginOptions[Math.floor(rng.random() * originOptions.length)];
+			const distance = function distance(a, b) {
+				if (river.some(e => geometry.areEdgesEquivalent(e, [a, b]))) {
+					return geometry.calcDistance(a, b) * 1;
+				} else {
+					return geometry.calcDistance(a, b);
+				}
+			}
+			const subPath = findPath(intersectionGraph, distance, subOrigin, subDestination);
+			subRiver.push(...geometry.getPolygonEdges(subPath));
+			if (subRiver.length) renderRiver(subPath, subRiverWidth);
+		}
+
+		for (let edge of river.concat(subRiver)) {
 			let vEdge = diagram.edges.filter(Boolean).find(vEdge => {
 				return geometry.areEdgesEquivalent(vEdge, edge);
 			});
-			if (!vEdge) return true;
+			if (!vEdge) break;
 			let left = vEdge.left ? getDistrictBySite(vEdge.left) : null;
 			let right = vEdge.right ? getDistrictBySite(vEdge.right) : null;
 			if (left && right) {
 				left.rivers.push(right);
 				right.rivers.push(left);
 			}
-			let leftIsWater = left ? left.type === 'water' : false;
-			let rightIsWater = right ? right.type === 'water' : false;
-			return !(leftIsWater && rightIsWater);
-		});
-		river.push(...edges);
-		path = edges.map(edge => edge[0]);
+		}
 
 		renderRiver(path, riverWidth);
 	})();
@@ -408,13 +431,14 @@ function generateMap() {
 		district.chaos = 0;
 	}
 
-	let riversAndRoads = river.concat(mainRoads);
+	console.info(river, subRiver);
+	let riversAndRoads = river.concat(subRiver).concat(mainRoads);
 	// remove duplicates
 	riversAndRoads = riversAndRoads.reduce((acc, cur) => {
 		if (acc.every(edge => !geometry.areEdgesEquivalent(edge, cur))) acc.push(cur);
 		return acc;
 	}, []);
-	// make main roads wider
+	// make space for roads and rivers
 	console.log('creating main roads');
 	for (let district of districts.filter(d => d.type !== 'water')) {
 		let copy = district.polygon.map(point => [...point]);
@@ -423,7 +447,14 @@ function generateMap() {
 			for (let road of riversAndRoads) {
 				if (geometry.areEdgesEquivalent(edge, road)) {
 					if (copy.indexOf(edge[0]) !== -1) {
-						let inset = river.includes(road) ? riverWidth / 2 + 3 : 3;
+						let inset: number;
+						if (river.includes(road)) {
+							inset = riverWidth / 2 + 3;
+						} else if (subRiver.includes(road)) {
+							inset = subRiverWidth / 2 + 3;
+						} else {
+							inset = 3;
+						}
 						if (district.type === 'rural') inset += 2;
 						let result = geometry.insetPolygonEdge(district.polygon, district.polygon[copy.indexOf(edge[0])], inset);
 						if (result) {
@@ -431,10 +462,6 @@ function generateMap() {
 								copy.splice(splicedIndex, 1);
 							}
 							if (district.type === 'rural') { // add urban sprawl buildings
-								// const rect = geometry.createRectFromEdge(result.newEdge, 20, district.site);
-								// svg.append('polygon')
-								// 	.attr('fill', 'rgba(255,0,255,0.5)')
-								// 	.attr('points', rect.join(' '));
 								let numBuildings, minWidth, maxWidth;
 								if (district.neighbors.some(d => d.type === 'urban')) {
 									numBuildings = 10;
