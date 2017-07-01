@@ -116,27 +116,36 @@ function connectDistricts(start: District, end: District, graph: {[point: string
 }
 
 function createRoads(districts: District[], diagram: d3.VoronoiDiagram<Point>, graph: {[point: string]: Point[]}): Edge[] {
-	let villageVoronoi = d3.voronoi();
+	const villageVoronoi = d3.voronoi();
 	villageVoronoi.extent([[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2], [WIDTH + SITE_GRID_SIZE * 2, HEIGHT + SITE_GRID_SIZE * 2]]);
-
-	let villages = districts.filter(d => d.type === 'village');
-
-	let villageDiagram = villageVoronoi(villages.map(v => v.site));
+	const villages = districts.filter(d => d.type === 'village');
+	const villageDiagram = villageVoronoi(villages.map(v => v.site));
 
 	let roads: Edge[] = [];
 
-	let triangles = villageDiagram.triangles();
-	for (let triangle of triangles) {
-		// // DEBUG
-		// d3.select('svg').append('polygon')
-		// 	.attr('points', triangle.join(' '))
-		// 	.attr('fill', 'none')
-		// 	.attr('stroke', 'red')
-		// 	.attr('stroke-width', 2);
-		let triangleDistricts = triangle.map(site => districts.find(d => site.toString() === d.site.toString()));
+	// Connect villages with roads according to delauney triangulation
+	const triangles = villageDiagram.triangles();
+	for (const triangle of triangles) {
+		const triangleDistricts = triangle.map(site => districts.find(d => site.toString() === d.site.toString()));
 		roads.push(...connectDistricts(triangleDistricts[0], triangleDistricts[1], graph, roads));
 		roads.push(...connectDistricts(triangleDistricts[1], triangleDistricts[2], graph, roads));
 		roads.push(...connectDistricts(triangleDistricts[2], triangleDistricts[0], graph, roads));
+	}
+
+	// Remove roads adjacent to villages
+	roads = roads.filter(road => {
+		return villages.every(village => {
+			return geometry.getPolygonEdges(village.polygon).every(edge => {
+				return !geometry.areEdgesEquivalent(edge, road);
+			});
+		});
+	});
+
+	// Recalculate road ends
+	for (const village of villages) {
+		village.roadEnds = village.polygon.filter(p => {
+			return roads.some(road => geometry.arePointsEquivalent(road[0], p) || geometry.arePointsEquivalent(road[1], p))
+		});
 	}
 
 	return roads;
@@ -381,16 +390,6 @@ function generateMap() {
 
 	// place roads on Delauney triangulation between villages
 	let mainRoads = createRoads(districts, diagram, intersectionGraph);
-	// // DEBUG
-	// for (let edge of mainRoads) {
-	// 	svg.append('line')
-	// 		.attr('stroke', 'red')
-	// 		.attr('stroke-width', '1')
-	// 		.attr('x1', edge[0][0])
-	// 		.attr('x2', edge[1][0])
-	// 		.attr('y1', edge[0][1])
-	// 		.attr('y2', edge[1][1]);
-	// }
 
 	// determine urban core
 	let core = districts
@@ -410,6 +409,11 @@ function generateMap() {
 	core.blockSize = INNER_BLOCK_SIZE;
 	core.chaos = INNER_CHAOS;
 	core.streetWidth = INNER_STREET_WIDTH;
+	for (let district of core.neighbors.filter(d => d.type === 'urban')) {
+		district.chaos = INNER_CHAOS;
+		district.blockSize = INNER_BLOCK_SIZE;
+		district.streetWidth = INNER_STREET_WIDTH;
+	}
 	for (let district of urbanRim) {
 		district.type = 'urban';
 		district.chaos = OUTER_CHAOS;
@@ -431,7 +435,6 @@ function generateMap() {
 		district.chaos = 0;
 	}
 
-	console.info(river, subRiver);
 	let riversAndRoads = river.concat(subRiver).concat(mainRoads);
 	// remove duplicates
 	riversAndRoads = riversAndRoads.reduce((acc, cur) => {
