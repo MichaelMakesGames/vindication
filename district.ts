@@ -6,7 +6,8 @@ type DistrictType = 'rural' | 'urban' | 'plaza' | 'water' | 'village';
 
 const VILLAGE_SCORE_BASE = 1;
 const VILLAGE_SCORE_ON_COAST = 5;
-const VILLAGE_SCORE_ON_RIVER = 10
+const VILLAGE_SCORE_ON_RIVER = 10;
+const VILLAGE_SCORE_ON_MOUTH = 30;
 const VILLAGE_SCORE_NEXT_TO_VILLAGE = -6;
 
 const URBAN_SCORE_BASE = 5;
@@ -14,6 +15,7 @@ const URBAN_SCORE_EACH_ADJACENT_VILLAGE = 5;
 const URBAN_SCORE_EACH_ADJACENT_URBAN = 10
 const URBAN_SCORE_ON_COAST = 5;
 const URBAN_SCORE_ON_RIVER = 10;
+const URBAN_SCORE_ON_MOUTH = 30;
 const URBAN_SCORE_HAS_BRIDGE = 5;
 
 export default class District {
@@ -44,11 +46,13 @@ export default class District {
 	calcVillageScore(): number {
 		const onCoast: boolean = this.neighbors.some(d => d.type === 'water');
 		const onRiver: boolean = !!this.rivers.length;
+		const onMouth: boolean = onCoast && onRiver;
 		const nextToVillage: boolean = this.neighbors.some(d => d.type === 'village');
 
 		return VILLAGE_SCORE_BASE +
 			Number(onCoast) * VILLAGE_SCORE_ON_COAST +
 			Number(onRiver) * VILLAGE_SCORE_ON_RIVER +
+			Number(onMouth) * VILLAGE_SCORE_ON_MOUTH +
 			Number(nextToVillage) * VILLAGE_SCORE_NEXT_TO_VILLAGE;
 	}
 
@@ -57,6 +61,7 @@ export default class District {
 		const numAdjacentUrban = this.neighbors.filter(d => d.type === 'urban').length;
 		const onCoast = this.neighbors.some(d => d.type === 'water');
 		const onRiver = !!this.rivers.length;
+		const onMouth = onCoast && onRiver;
 		const hasBridge = !!this.bridges.length;
 
 		return URBAN_SCORE_BASE +
@@ -64,6 +69,7 @@ export default class District {
 			numAdjacentUrban * URBAN_SCORE_EACH_ADJACENT_URBAN + 
 			Number(onCoast) * URBAN_SCORE_ON_COAST +
 			Number(onRiver) * URBAN_SCORE_ON_RIVER +
+			Number(onMouth) * URBAN_SCORE_ON_MOUTH +
 			Number(hasBridge) * URBAN_SCORE_HAS_BRIDGE;
 	}
 

@@ -6,6 +6,12 @@ import * as Random from 'rng';
 import { renderCoast, renderRiver } from './render';
 import * as PriorityQueue from 'priorityqueuejs';
 
+enum MapType {
+	Bay,
+	Delta,
+	Coastal
+}
+
 /**
  * From SO post: https://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript/901144#901144
  * @param name 
@@ -64,7 +70,7 @@ function pickWeighted<T>(items: T[], weightFunc: (item: T) => number): T {
 	throw new Error();
 }
 
-function findPath(graph: {[point: string]: Point[]}, distanceFunc: (from: Point, to: Point) => number, start: Point, target: Point): Point[] {
+function findPath(graph: { [point: string]: Point[] }, distanceFunc: (from: Point, to: Point) => number, start: Point, target: Point): Point[] {
 	// Dijkstra's algorithm, only runs until target found
 	let dist = {};
 	let prev = {};
@@ -94,7 +100,7 @@ function findPath(graph: {[point: string]: Point[]}, distanceFunc: (from: Point,
 	}
 }
 
-function connectDistricts(start: District, end: District, graph: {[point: string]: Point[]}, curRoads: Edge[]): Edge[] {
+function connectDistricts(start: District, end: District, graph: { [point: string]: Point[] }, curRoads: Edge[]): Edge[] {
 
 	let startPoint = geometry.getPointClosestTo(start.polygon, end.site);
 	if (!start.roadEnds.includes(startPoint)) start.roadEnds.push(startPoint);
@@ -115,7 +121,7 @@ function connectDistricts(start: District, end: District, graph: {[point: string
 	return roads;
 }
 
-function createRoads(districts: District[], diagram: d3.VoronoiDiagram<Point>, graph: {[point: string]: Point[]}): Edge[] {
+function createRoads(districts: District[], diagram: d3.VoronoiDiagram<Point>, graph: { [point: string]: Point[] }): Edge[] {
 	const villageVoronoi = d3.voronoi();
 	villageVoronoi.extent([[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2], [WIDTH + SITE_GRID_SIZE * 2, HEIGHT + SITE_GRID_SIZE * 2]]);
 	const villages = districts.filter(d => d.type === 'village');
@@ -156,7 +162,7 @@ function urbanize(district: District, urbanRim: District[]): void {
 	district.chaos = MID_CHAOS;
 	district.blockSize = MID_BLOCK_SIZE;
 	district.streetWidth = MID_STREET_WIDTH;
-	
+
 	for (let neighbor of district.neighbors) {
 		if (
 			neighbor.type !== 'urban' &&
@@ -171,7 +177,7 @@ function urbanize(district: District, urbanRim: District[]): void {
 	if (urbanRim.includes(district)) urbanRim.splice(urbanRim.indexOf(district), 1);
 }
 
-function generateMap() {
+function generateMap(mapType: MapType) {
 	let voronoi = d3.voronoi();
 	voronoi.extent([[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2], [WIDTH + SITE_GRID_SIZE * 2, HEIGHT + SITE_GRID_SIZE * 2]]);
 
@@ -207,11 +213,11 @@ function generateMap() {
 		district.site = polygon.data;
 		return district;
 	});
-	
-	let districtsBySite: {string: District} = districts.reduce((acc: {string: District}, cur: District) => {
+
+	let districtsBySite: { string: District } = districts.reduce((acc: { string: District }, cur: District) => {
 		acc[cur.site.toString()] = cur;
 		return acc;
-	}, {} as {string: District});
+	}, {} as { string: District });
 	function getDistrictBySite(site: Point): District {
 		return districtsBySite[site.toString()];
 	}
@@ -225,7 +231,7 @@ function generateMap() {
 	}
 
 	let intersections = [];
-	let intersectionGraph: {[point: string]: Point[]} = {};
+	let intersectionGraph: { [point: string]: Point[] } = {};
 	for (let edge of diagram.edges.filter(Boolean)) {
 		intersectionGraph[edge[0].toString()] = intersectionGraph[edge[0].toString()] || [];
 		intersectionGraph[edge[0].toString()].push(edge[1]);
@@ -245,10 +251,29 @@ function generateMap() {
 		return diagram.cells.find(cell => cell && cell.site.data.toString() === polygon.data.toString());
 	}
 
-	// create ocean and coast
-	for (let district of districts) {
-		if (district.site[1] > HEIGHT * 0.75) district.type = 'water';
+	// create ocean
+	if ([MapType.Bay, MapType.Delta, MapType.Coastal].includes(mapType)) {
+		for (let district of districts) {
+			if (district.site[1] > HEIGHT * 0.75) district.type = 'water';
+		}
 	}
+
+	// create bay
+	const bayIterations = Math.floor(rng.random() * 2 + 1);
+	for (let i = 0; i < bayIterations; i++) {
+		if (mapType === MapType.Bay) {
+			const coastalDistricts = districts.filter(d => d.type !== 'water' && d.neighbors.some(d => d.type === 'water'));
+			coastalDistricts.sort((a, b) => Math.abs(a.site[0] - WIDTH / 2) - Math.abs(b.site[0] - WIDTH / 2));
+			const choices = coastalDistricts[0].neighbors.filter(d => d.type !== 'water');
+			const choice = choices[Math.floor(rng.random() * choices.length)];
+			choice.type = 'water';
+			for (let neighbor of choice.neighbors) {
+				neighbor.type = 'water';
+			}
+		}
+	}
+
+	// determine and render coasts
 	const coastEdges: Edge[] = [];
 	(() => {
 		for (let edge of diagram.edges.filter(edge => edge && edge.left && edge.right)) {
@@ -261,7 +286,7 @@ function generateMap() {
 			}
 		}
 		let coastLines = geometry.joinEdges(coastEdges);
-		console.assert(coastLines.length === 1, 'All coast edges should have been joined into one coast');
+		coastLines.sort((a, b) => b.length - a.length);
 		coastLines.forEach(coast => {
 			renderCoast(coast);
 		});
@@ -283,28 +308,25 @@ function generateMap() {
 	(() => {
 		let origin = intersections
 			.filter(p => p[1] === SITE_GRID_SIZE * -2)
-			.sort((a, b) => Math.abs(a[0] - WIDTH/2) - Math.abs(b[0] - WIDTH/2))
-			[0];
+			.sort((a, b) => Math.abs(a[0] - WIDTH / 2) - Math.abs(b[0] - WIDTH / 2))
+		[0];
 		let destination = coastEdges
 			.map<Point>(e => e[0])
-			// .filter(p => p[1] === HEIGHT + SITE_GRID_SIZE * 2)
-			.sort((a, b) => Math.abs(a[0] - WIDTH/3) - Math.abs(b[0] - WIDTH/3))
-			[0];
+			.sort((a, b) => Math.abs(a[0] - WIDTH * (mapType === MapType.Delta ? 1 / 3 : 1 / 2)) - Math.abs(b[0] - WIDTH / 3))
+		[0];
 		let path = findPath(intersectionGraph, (a, b) => geometry.calcDistance(a, b), origin, destination);
 		river.push(...geometry.getPolygonEdges(path));
 
-		if (true) { // Confluence
+		if (mapType === MapType.Delta) {
 			const index = Math.floor(rng.random() * path.length / 3 + path.length / 3);
 			const subDestination = path[index];
 			const neighborDx = (destination[0] - path[index - 1][0]) + (destination[0] - path[index + 1][0]);
 			const subOriginOptions = coastEdges
 				.map<Point>(e => e[0])
-				// .filter(p => p[1] === SITE_GRID_SIZE * -2)
 				.filter(p => neighborDx > 0 ? p[0] < origin[0] : p[0] > origin[0]);
 			const subOrigin = subOriginOptions
-				.sort((a, b) => Math.abs(a[0] - WIDTH*2/3) - Math.abs(b[0] - WIDTH*2/3))
-				[0];
-			// const subOrigin = subOriginOptions[Math.floor(rng.random() * originOptions.length)];
+				.sort((a, b) => Math.abs(a[0] - WIDTH * 2 / 3) - Math.abs(b[0] - WIDTH * 2 / 3))
+			[0];
 			const distance = function distance(a, b) {
 				if (river.some(e => geometry.areEdgesEquivalent(e, [a, b]))) {
 					return geometry.calcDistance(a, b) * 1;
@@ -351,6 +373,9 @@ function generateMap() {
 		let potentialDistricts = districts.filter(d => d.type === 'rural');
 		let newVillage = pickWeighted<District>(potentialDistricts, d => d.calcVillageScore());
 		newVillage.type = 'village';
+		newVillage.chaos = VILLAGE_CHAOS;
+		newVillage.blockSize = VILLAGE_BLOCK_SIZE;
+		newVillage.streetWidth = VILLAGE_STREET_WIDTH;
 	}
 
 	// place bridges between neighboring villages across rivers
@@ -445,8 +470,8 @@ function generateMap() {
 	console.log('creating main roads');
 	for (let district of districts.filter(d => d.type !== 'water')) {
 		let copy = district.polygon.map(point => [...point]);
-		let edges = copy.map((p, i) => [p, copy[(i+1) % copy.length]] as Edge);
-		edges.forEach((edge, index)=> {
+		let edges = copy.map((p, i) => [p, copy[(i + 1) % copy.length]] as Edge);
+		edges.forEach((edge, index) => {
 			for (let road of riversAndRoads) {
 				if (geometry.areEdgesEquivalent(edge, road)) {
 					if (copy.indexOf(edge[0]) !== -1) {
@@ -501,6 +526,7 @@ function generateMap() {
 		});
 	}
 
+	// inset polygons and render districts
 	let districtTypeToRenderTarget = {
 		'urban': document.getElementById('urban'),
 		'plaza': document.getElementById('urban'),
@@ -518,29 +544,6 @@ function generateMap() {
 		if (inset) {
 			for (let point of district.polygon) geometry.insetPolygonEdge(district.polygon, point, inset);
 		}
-		// let district = new District(polygon, districtType);
-		switch (districtType) {
-		// 	case 'inner': {
-		// 		district.chaos = INNER_CHAOS;
-		// 		district.blockSize = INNER_BLOCK_SIZE;
-		// 		break;
-		// 	}
-		// 	case 'mid': {
-		// 		district.chaos = MID_CHAOS;
-		// 		district.blockSize = MID_BLOCK_SIZE;
-		// 		break;
-		// 	}
-		// 	case 'outer': {
-		// 		district.chaos = OUTER_CHAOS;
-		// 		district.blockSize = OUTER_BLOCK_SIZE;
-		// 		break;
-		// 	}
-			case 'village': {
-				district.chaos = VILLAGE_CHAOS;
-				district.blockSize = VILLAGE_BLOCK_SIZE;
-				district.streetWidth = VILLAGE_STREET_WIDTH;
-			}
-		}
 
 		district.render(districtTypeToRenderTarget[district.type]);
 	}
@@ -551,7 +554,9 @@ function generateMap() {
 let done = false;
 let tries = 0;
 while (!done) {
-	done = generateMap();
+	const types = [MapType.Bay, MapType.Coastal, MapType.Delta];
+	const type = types[Math.floor(rng.random() * types.length)];
+	done = generateMap(type);
 	tries++;
 	if (tries >= 860) {
 		console.error('Too many tries, abandoning');

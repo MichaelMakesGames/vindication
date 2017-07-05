@@ -8,6 +8,9 @@ export function renderCoast(coast: geometry.Point[]): void {
 		.x(d => d[0])
 		.y(d => d[1])
 		.curve(d3.curveCatmullRom);
+	if (geometry.arePointsEquivalent(coast[0], coast[coast.length - 1])) {
+		line.curve(d3.curveCatmullRomClosed);
+	}
 
 	geometry.clipCorners(coast, 5);
 	coast.pop();
