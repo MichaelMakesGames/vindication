@@ -1,5 +1,4 @@
 import * as d3 from 'd3';
-import { slicePolygon, clipCorners, insetPolygonEdge, shatterPolygon, Point, Edge, Polygon } from './geometry';
 import * as geometry from './geometry';
 
 type DistrictType = 'rural' | 'urban' | 'plaza' | 'water' | 'village';
@@ -19,7 +18,7 @@ const URBAN_SCORE_ON_MOUTH = 30;
 const URBAN_SCORE_HAS_BRIDGE = 5;
 
 export default class District {
-	private blocks: [number, number][][] = [];
+	public blocks: [number, number][][] = [];
 	public isCore: boolean = false;
 	public chaos: number = 0;
 	public blockSize: number = 0;
@@ -27,18 +26,18 @@ export default class District {
 	public neighbors: District[] = [];
 	public rivers: District[] = []; // neighbors across a river segment
 	public bridges: District[] = []; // neighbors across a river segment with a bridge
-	public roadEnds: Point[] = []; // points (from this.originalPolygon) that major roads start/end at
-	public site: Point | null = null;
-	public originalPolygon: Polygon;
+	public roadEnds: geometry.Point[] = []; // points (from this.originalPolygon) that major roads start/end at
+	public site: geometry.Point | null = null;
+	public originalPolygon: geometry.Polygon;
 
 	constructor(
-		public polygon: Polygon,
+		public polygon: geometry.Polygon,
 		public type: DistrictType
 	) {
 		this.originalPolygon = [...polygon];
 	}
 
-	originalPolygonPointToPolygonPoint(point: Point): Point { // TODO make this smarter...
+	originalPolygonPointToPolygonPoint(point: geometry.Point): geometry.Point { // TODO make this smarter...
 		let index = this.originalPolygon.findIndex(p => geometry.arePointsEquivalent(p, point));
 		return this.polygon[index];
 	}
@@ -73,7 +72,7 @@ export default class District {
 			Number(hasBridge) * URBAN_SCORE_HAS_BRIDGE;
 	}
 
-	createBlocks(queue: Polygon[]) {
+	createBlocks(queue: geometry.Polygon[]) {
 		// split 'building' districts into blocks
 		// let queue = [this.polygon];
 		let queueLoopCounter = 0;
@@ -124,7 +123,7 @@ export default class District {
 				slope = 999999999;
 			}
 
-			let testEdge: Edge = [
+			let testEdge: geometry.Edge = [
 				[
 					1000000,
 					slope * (1000000 - splitPoint[0]) + splitPoint[1]
@@ -135,147 +134,12 @@ export default class District {
 				]
 			];
 
-			let sliceResult = slicePolygon(polygon, testEdge, this.streetWidth);
+			let sliceResult = geometry.slicePolygon(polygon, testEdge, this.streetWidth);
 			if (sliceResult) {
 				queue.push(...sliceResult);
 			} else {
 				console.warn('Split polygon failed');
 				return null;
-			}
-		}
-	}
-
-	render(target: Element): void {
-		let d3Target = d3.select(target);
-		let fieldLine = d3.line()
-			.x(d => d[0])
-			.y(d => d[1])
-			.curve(d3.curveCatmullRomClosed.alpha(0.2));
-
-		if (this.isCore) {
-			let rect = geometry.findRectInPolygon(this.polygon);
-			// d3Target.append('polygon')
-			// 	.attr('stroke', 'red')
-			// 	.attr('stroke-width', 2)
-			// 	.attr('points', this.polygon.join(' '));
-			// d3Target.append('polygon')
-			// 	.attr('fill', 'rgba(255, 0, 0, 0.5)')
-			// 	.attr('points', rect.join(' '));
-			let cross = geometry.createCross(rect);
-			d3Target.append('polygon')
-				.attr('class', 'building')
-				.attr('points', cross.join(' '));
-			return;
-		}
-
-		if (this.blockSize && !this.blocks.length) {
-			let queue = [this.polygon];
-			if (this.roadEnds.length) {
-				let roads = this.roadEnds.map(p => this.originalPolygonPointToPolygonPoint(p)).filter(Boolean);
-				let clip = 10 + Math.random() * 10;
-				queue = shatterPolygon(this.polygon, this.site);
-				for (let polygon of queue) {
-					let inset1 = 2;
-					let inset2 = 2;
-					if (roads.some(p => geometry.arePointsEquivalent(p, polygon[1]))) {
-						inset1 = 5;
-					}
-					if (roads.some(p => geometry.arePointsEquivalent(p, polygon[0]))) {
-						inset2 = 5;
-					}
-					insetPolygonEdge(polygon, polygon[1], inset1);
-					insetPolygonEdge(polygon, polygon[2], inset2);
-					geometry.clipCorner(polygon, 2, clip);
-				}
-			}
-			this.createBlocks(queue);
-		}
-
-		let polygonsToRender: [number, number][][] = this.blocks.length ? this.blocks : [this.polygon];
-		// let hasPlaza = false;
-		for (let polygon of polygonsToRender) {
-			switch (this.type) {
-				case 'village': {
-					// // DEBUG
-					// for (let point of this.roads) {
-					// 	d3Target.append('line')
-					// 		.attr('stroke-width', 2)
-					// 		.attr('stroke', 'red')
-					// 		.attr('x1', point[0])
-					// 		.attr('y1', point[1])
-					// 		.attr('x2', this.site[0])
-					// 		.attr('y2', this.site[1]);
-					// }
-					// break;
-				}
-				
-				case 'urban': {
-					// if (!hasPlaza && polygon.some(blockPoint => this.polygon.some(polygonPoint => blockPoint[0] === polygonPoint[0] && blockPoint[1] === polygonPoint[1]))) {
-					// 	if (d3.polygonArea(polygon) < 200 && Math.random() < 1) {
-					// 		hasPlaza = true;
-					// 		break;
-					// 	}
-					// }
-					d3Target.append('polygon')
-						.datum(this)
-						.attr('class', 'urban-block')
-						.attr('points', polygon.join(' '));
-
-					let copy: Polygon = polygon.map(point => [...point] as Point);
-					let success = true;
-					for (let point of copy) {
-						success = success && !!insetPolygonEdge(copy, point, 10);
-					}
-					if (success) {
-						d3Target.append('polygon')
-							.attr('class', 'courtyard')
-							.attr('points', copy.join(' '));
-					}
-
-
-					// // DEBUG
-					// for (let point of this.roads) {
-					// 	d3Target.append('line')
-					// 		.attr('stroke-width', 2)
-					// 		.attr('stroke', 'red')
-					// 		.attr('x1', point[0])
-					// 		.attr('y1', point[1])
-					// 		.attr('x2', this.site[0])
-					// 		.attr('y2', this.site[1]);
-					// }
-
-					break;
-				}
-
-				case 'rural': {
-					clipCorners(polygon, 6);
-					let selection = d3Target.append('path')
-						.datum(polygon)
-						.attr('class', 'field' + Math.floor(Math.random() * 3 + 1))
-						.attr('d', fieldLine);
-
-					// // DEBUG
-					// let color = d3.scaleLinear<string>()
-					// 	.domain([0, VILLAGE_SCORE_BASE + VILLAGE_SCORE_ON_COAST + VILLAGE_SCORE_ON_RIVER])
-					// 	.range(['white', 'red']);
-					// selection.style('fill', color(this.calcVillageScore()));
-					break;
-				}
-
-				case 'water': {
-					d3Target.append('polygon')
-						.attr('class', 'water')
-						.style('animation-duration', Math.floor(Math.random() * 8 + 3) + 's')
-						.style('animation-delay', Math.floor(Math.random() * 1000) + 'ms')
-						.attr('points', polygon.join(' '));
-					break;
-				}
-
-				case 'plaza': {
-					break;
-				}
-
-				default: {}
 			}
 		}
 	}
