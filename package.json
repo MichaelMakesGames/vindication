@@ -4,21 +4,27 @@
   "description": "",
   "main": "bundle.js",
   "dependencies": {
+    "body-parser": "^1.18.2",
     "d3": "^4.7.4",
+    "express": "^4.16.2",
     "priorityqueuejs": "^1.0.0",
     "rng": "^0.2.2",
     "source-map-loader": "^0.2.1",
     "ts-loader": "^2.0.3",
     "typescript": "^2.2.2",
-    "webpack": "^2.4.1",
-    "webpack-dev-server": "^2.4.2"
+    "webpack": "^2.4.1"
   },
   "devDependencies": {
-    "@types/d3": "^4.7.0"
+    "@types/body-parser": "^1.16.8",
+    "@types/d3": "^4.7.0",
+    "@types/express": "^4.11.0"
   },
   "scripts": {
-    "start": "webpack-dev-server",
-    "build": "webpack",
+    "start": "npm run build && npm run serve",
+    "serve": "node server.js",
+    "build": "npm run build-ts && npm run build-client",
+    "build-ts": "tsc",
+    "build-client": "webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

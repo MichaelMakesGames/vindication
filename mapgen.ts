@@ -1,12 +1,11 @@
-//import * as d3 from 'd3';
 import { voronoi } from 'd3';
-import * as geometry from './geometry';
-import { Point, Edge, Polygon } from './geometry';
-import District from "./district";
+import * as geometry from './common/geometry';
+import { Point, Edge, Polygon } from './common/geometry';
+import { District, DistrictJson } from "./common/district";
 import * as Random from 'rng';
 import * as PriorityQueue from 'priorityqueuejs';
-import Map from './map';
-import { Options } from './options';
+import { MapJson } from './common/map';
+import { Options } from './common/options';
 
 enum MapType {
 	Bay,
@@ -14,10 +13,10 @@ enum MapType {
 	Coastal
 }
 
-export function generate(options: Options): Map {
+export function generate(options: Options): MapJson {
 	console.info('Seed:', options.seed);
 	const rng = new Random.MT(options.seed);
-	let map: Map = null
+	let map: MapJson = null
 	let tries = 0;
 	while (!map) {
 		const types = [MapType.Bay, MapType.Coastal, MapType.Delta];
@@ -176,8 +175,8 @@ function urbanize(district: District, urbanRim: District[]): void {
 	if (urbanRim.includes(district)) urbanRim.splice(urbanRim.indexOf(district), 1);
 }
 
-function generateMap(mapType: MapType, options: Options, rng) {
-	let map: Map = {
+function generateMap(mapType: MapType, options: Options, rng): MapJson {
+	let map: MapJson = {
 		coasts: [] as Point[][],
 		subRiver: {
 			path: [] as Point[],
@@ -188,7 +187,7 @@ function generateMap(mapType: MapType, options: Options, rng) {
 			width: 0
 		},
 		bridges: [] as Edge[],
-		districts: [] as District[],
+		districts: [] as DistrictJson[],
 		sprawl: [] as Polygon[]
 	}
 
@@ -521,7 +520,7 @@ function generateMap(mapType: MapType, options: Options, rng) {
 		}
 	}
 
-	map.districts = districts;
+	map.districts = districts.map(d => d.toJson());
 
 	return map;
 }

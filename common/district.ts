@@ -17,7 +17,23 @@ const URBAN_SCORE_ON_RIVER = 10;
 const URBAN_SCORE_ON_MOUTH = 30;
 const URBAN_SCORE_HAS_BRIDGE = 5;
 
-export default class District {
+export interface DistrictJson {
+	blocks: [number, number][][],
+	isCore: boolean,
+	chaos: number,
+	blockSize: number,
+	streetWidth: number,
+	neighbors: geometry.Point[],
+	rivers: geometry.Point[],
+	bridges: geometry.Point[],
+	roadEnds: geometry.Point[],
+	site: geometry.Point,
+	originalPolygon: geometry.Polygon,
+	polygon: geometry.Polygon,
+	type: DistrictType
+}
+
+export class District {
 	public blocks: [number, number][][] = [];
 	public isCore: boolean = false;
 	public chaos: number = 0;
@@ -30,11 +46,58 @@ export default class District {
 	public site: geometry.Point | null = null;
 	public originalPolygon: geometry.Polygon;
 
+	private neighborSites: geometry.Point[];
+	private riverSites: geometry.Point[];
+	private bridgeSites: geometry.Point[];
+
 	constructor(
 		public polygon: geometry.Polygon,
 		public type: DistrictType
 	) {
 		this.originalPolygon = [...polygon];
+	}
+
+	toJson(): DistrictJson {
+		return {
+			blocks: this.blocks,
+			isCore: this.isCore,
+			chaos: this.chaos,
+			blockSize: this.blockSize,
+			streetWidth: this.streetWidth,
+			neighbors: this.neighbors.map(d => d.site),
+			rivers: this.rivers.map(d => d.site),
+			bridges: this.bridges.map(d => d.site),
+			roadEnds: this.roadEnds,
+			site: this.site,
+			originalPolygon: this.originalPolygon,
+			polygon: this.polygon,
+			type: this.type
+		};
+	}
+
+	static fromJson(json: DistrictJson): District {
+		let district: District = new District(json.polygon, json.type);
+		district.blocks = json.blocks;
+		district.isCore = json.isCore;
+		district.chaos = json.chaos;
+		district.blockSize = json.blockSize;
+		district.streetWidth = json.streetWidth;
+		district.neighborSites = json.neighbors;
+		district.riverSites = json.rivers;
+		district.bridgeSites = json.bridges;
+		district.roadEnds = json.roadEnds;
+		district.site = json.site;
+		district.originalPolygon = json.originalPolygon;
+		return district;
+	}
+
+	linkSites(districts: District[]): void {
+		let getDistrict = function(site: geometry.Point): District {
+			return districts.find(d => geometry.arePointsEquivalent(d.site, site));
+		};
+		this.neighbors = this.neighborSites.map(getDistrict);
+		this.rivers = this.riverSites.map(getDistrict);
+		this.bridges = this.bridgeSites.map(getDistrict);
 	}
 
 	originalPolygonPointToPolygonPoint(point: geometry.Point): geometry.Point { // TODO make this smarter...
@@ -145,3 +208,5 @@ export default class District {
 	}
 
 }
+
+export default District

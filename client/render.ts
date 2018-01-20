@@ -1,8 +1,8 @@
 import * as d3 from 'd3';
-import * as geometry from './geometry';
-import Map from './map';
-import { Options } from './options'
-import District from './district';
+import * as geometry from '../common/geometry';
+import Map from '../common/map';
+import { Options } from '../common/options'
+import District from '../common/district';
 
 export function render(map: Map, options: Options): void {
 	let svg = d3.select('#map')
