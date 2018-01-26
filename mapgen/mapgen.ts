@@ -1,11 +1,12 @@
 import { voronoi } from 'd3';
-import * as geometry from './common/geometry';
-import { Point, Edge, Polygon } from './common/geometry';
-import { District, DistrictJson } from "./common/district";
+import * as geometry from '../common/geometry';
+import { Point, Edge, Polygon } from '../common/geometry';
+import { District, DistrictJson } from "../common/district";
 import * as Random from 'rng';
 import * as PriorityQueue from 'priorityqueuejs';
-import { MapJson } from './common/map';
-import { Options } from './common/options';
+import { MapJson } from '../common/map';
+import { Options } from '../common/options';
+import { generateName } from './namegen';
 
 enum MapType {
 	Bay,
@@ -214,8 +215,8 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	let diagram = voronoiDiagram(points);
 
 	let polygons: any[] = diagram.polygons().filter(Boolean);
-	let districts: District[] = polygons.map(polygon => {
-		let district = new District(polygon, 'rural');
+	let districts: District[] = polygons.map((polygon, index) => {
+		let district = new District(index, polygon, 'rural');
 		district.site = polygon.data;
 		return district;
 	});
@@ -518,6 +519,8 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		if (inset) {
 			for (let point of district.polygon) geometry.insetPolygonEdge(district.polygon, point, inset);
 		}
+
+		district.name = generateName(district, rng);
 	}
 
 	map.districts = districts.map(d => d.toJson());

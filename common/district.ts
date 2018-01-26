@@ -18,6 +18,8 @@ const URBAN_SCORE_ON_MOUTH = 30;
 const URBAN_SCORE_HAS_BRIDGE = 5;
 
 export interface DistrictJson {
+	id: number,
+	name: string,
 	blocks: [number, number][][],
 	isCore: boolean,
 	chaos: number,
@@ -34,6 +36,7 @@ export interface DistrictJson {
 }
 
 export class District {
+	public name: string = '';
 	public blocks: [number, number][][] = [];
 	public isCore: boolean = false;
 	public chaos: number = 0;
@@ -51,6 +54,7 @@ export class District {
 	private bridgeSites: geometry.Point[];
 
 	constructor(
+		public id: number,
 		public polygon: geometry.Polygon,
 		public type: DistrictType
 	) {
@@ -59,6 +63,8 @@ export class District {
 
 	toJson(): DistrictJson {
 		return {
+			id: this.id,
+			name: this.name,
 			blocks: this.blocks,
 			isCore: this.isCore,
 			chaos: this.chaos,
@@ -76,7 +82,8 @@ export class District {
 	}
 
 	static fromJson(json: DistrictJson): District {
-		let district: District = new District(json.polygon, json.type);
+		let district: District = new District(json.id, json.polygon, json.type);
+		district.name = json.name;
 		district.blocks = json.blocks;
 		district.isCore = json.isCore;
 		district.chaos = json.chaos;

@@ -52,11 +52,22 @@ socket.on('map', mapJson => {
 	};
 	map.districts = mapJson.districts.map(d => District.fromJson(d));
 	render(map, options);
+	const tooltip = d3.select('#tooltip');
 	d3.select('#overlay').selectAll('polygon').data(map.districts).enter()
 		.append('polygon')
 		.attr('points', d => d.polygon.join(' '))
 		.classed('district', true)
-		.classed('district--selectable', d => d.type === 'urban');
+		.classed('district--selectable', d => d.type === 'urban')
+		.on('mousemove', d => {
+			if (d.type === 'urban') {
+				tooltip.style('display', 'block')
+					.style('top', `${d3.event.clientY - 10}px`)
+					.style('left', `${d3.event.clientX + 10}px`);
+				(tooltip.node() as HTMLDivElement).innerText = d.name;
+			} else {
+				tooltip.style('display', 'none');
+			}
+		});
 });
 
 let role = null;

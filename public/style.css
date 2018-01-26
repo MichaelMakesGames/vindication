@@ -90,3 +90,12 @@ svg {
   border: black 5px solid;
   overflow-y: auto;
 }
+
+.tooltip {
+  position: absolute;
+  background: beige;
+  padding: 10px;
+  border: 2px solid black;
+  box-shadow: black 0px 0px 10px;
+  pointer-events: none;
+}
