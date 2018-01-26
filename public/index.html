@@ -6,6 +6,12 @@
 
 <body>
 
+	<div class="infobox">
+		<p>Role: <span id="role"></span></p>
+		<p>Turn: <span id="turn"></span></p>
+		<button id="submit-turn">Submit Turn</button>
+	</div>
+
 	<svg id="map" xmlns="http://www.w3.org/2000/svg">
 		<defs>
 			<pattern id="building" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
@@ -32,33 +38,19 @@
 				<circle fill="black" r="1" cx="2" cy="2.5"></circle>
 				<circle fill="black" r="1" cx="8" cy="2.5"></circle>
 			</pattern>
-
-			<filter id="filter">
-				<feTurbulence type="turbulence" baseFrequency="0.75" numOctaves="1" result="turbulence"></feTurbulence>
-				<feFlood result="beigeFill" x="0" y="0" width="100%" height="100%" flood-color="beige" flood-opacity="0.75"></feFlood>
-				<feFlood result="whiteFill" x="0" y="0" width="100%" height="100%" flood-color="white" flood-opacity="0.25"></feFlood>
-				<feColorMatrix in="turbulence" type="saturate" values="0" result="grayTurbulence"></feColorMatrix>
-				<feBlend in="grayTurbulence" in2="beigeFill" mode="multiply" result="beigeTurbulence"></feBlend>
-				<feBlend in="beigeTurbulence" in2="whiteFill" mode="multiply" result="lightTurbulence"></feBlend>
-				<feBlend in="SourceGraphic" in2="lightTurbulence" mode="multiply"></feBlend>
-			</filter>
 		</defs>
 
-		<g filter="url(#filter)">
+		<g>
 			<g id="water"></g>
 			<g id="coast"></g>
 			<g id="land"></g>
 			<g id="rural"></g>
 			<g id="urban"></g>
 			<g id="river"></g>
+			<g id="overlay"></g>
 		</g>
 
 	</svg>
-
-	<p>Generating a city, this may take a minute...</p>
-	<p>Currently only tested in Google Chrome</p>
-
-	<!--<script src="https://d3js.org/d3.v4.min.js"></script>-->
 	<script src="./bundle.js"></script>
 </body>
 

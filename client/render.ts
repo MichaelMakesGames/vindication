@@ -9,7 +9,7 @@ export function render(map: Map, options: Options): void {
 	svg
 		.attr('width', options.width)
 		// .attr('height', 'auto')
-		.attr('viewBox', `0 0 ${options.width} ${options.height}`);
+		.attr('viewBox', `100 100 ${options.width - 200} ${options.height - 200}`);
 	svg = svg.select('g');
 
 	map.coasts.forEach(coast => {
@@ -71,13 +71,6 @@ function renderDistrict(district: District, target: Element): void {
 
 	if (district.isCore) {
 		let rect = geometry.findRectInPolygon(district.polygon);
-		// d3Target.append('polygon')
-		// 	.attr('stroke', 'red')
-		// 	.attr('stroke-width', 2)
-		// 	.attr('points', district.polygon.join(' '));
-		// d3Target.append('polygon')
-		// 	.attr('fill', 'rgba(255, 0, 0, 0.5)')
-		// 	.attr('points', rect.join(' '));
 		let cross = geometry.createCross(rect);
 		d3Target.append('polygon')
 			.attr('class', 'building')
@@ -109,30 +102,10 @@ function renderDistrict(district: District, target: Element): void {
 	}
 
 	let polygonsToRender: [number, number][][] = district.blocks.length ? district.blocks : [district.polygon];
-	// let hasPlaza = false;
 	for (let polygon of polygonsToRender) {
 		switch (district.type) {
-			case 'village': {
-				// // DEBUG
-				// for (let point of district.roads) {
-				// 	d3Target.append('line')
-				// 		.attr('stroke-width', 2)
-				// 		.attr('stroke', 'red')
-				// 		.attr('x1', point[0])
-				// 		.attr('y1', point[1])
-				// 		.attr('x2', district.site[0])
-				// 		.attr('y2', district.site[1]);
-				// }
-				// break;
-			}
-			
+			case 'village': {} // fall through
 			case 'urban': {
-				// if (!hasPlaza && polygon.some(blockPoint => district.polygon.some(polygonPoint => blockPoint[0] === polygonPoint[0] && blockPoint[1] === polygonPoint[1]))) {
-				// 	if (d3.polygonArea(polygon) < 200 && Math.random() < 1) {
-				// 		hasPlaza = true;
-				// 		break;
-				// 	}
-				// }
 				d3Target.append('polygon')
 					.datum(district)
 					.attr('class', 'urban-block')
@@ -149,18 +122,6 @@ function renderDistrict(district: District, target: Element): void {
 						.attr('points', copy.join(' '));
 				}
 
-
-				// // DEBUG
-				// for (let point of district.roads) {
-				// 	d3Target.append('line')
-				// 		.attr('stroke-width', 2)
-				// 		.attr('stroke', 'red')
-				// 		.attr('x1', point[0])
-				// 		.attr('y1', point[1])
-				// 		.attr('x2', district.site[0])
-				// 		.attr('y2', district.site[1]);
-				// }
-
 				break;
 			}
 
@@ -170,12 +131,6 @@ function renderDistrict(district: District, target: Element): void {
 					.datum(polygon)
 					.attr('class', 'field' + Math.floor(Math.random() * 3 + 1))
 					.attr('d', fieldLine);
-
-				// // DEBUG
-				// let color = d3.scaleLinear<string>()
-				// 	.domain([0, VILLAGE_SCORE_BASE + VILLAGE_SCORE_ON_COAST + VILLAGE_SCORE_ON_RIVER])
-				// 	.range(['white', 'red']);
-				// selection.style('fill', color(district.calcVillageScore()));
 				break;
 			}
 
