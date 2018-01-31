@@ -32,7 +32,8 @@ export interface DistrictJson {
 	site: geometry.Point,
 	originalPolygon: geometry.Polygon,
 	polygon: geometry.Polygon,
-	type: DistrictType
+	type: DistrictType,
+	rebelControlled: boolean
 }
 
 export class District {
@@ -48,6 +49,7 @@ export class District {
 	public roadEnds: geometry.Point[] = []; // points (from this.originalPolygon) that major roads start/end at
 	public site: geometry.Point | null = null;
 	public originalPolygon: geometry.Polygon;
+	public rebelControlled: boolean = false;
 
 	private neighborSites: geometry.Point[];
 	private riverSites: geometry.Point[];
@@ -77,7 +79,8 @@ export class District {
 			site: this.site,
 			originalPolygon: this.originalPolygon,
 			polygon: this.polygon,
-			type: this.type
+			type: this.type,
+			rebelControlled: this.rebelControlled
 		};
 	}
 
@@ -95,6 +98,7 @@ export class District {
 		district.roadEnds = json.roadEnds;
 		district.site = json.site;
 		district.originalPolygon = json.originalPolygon;
+		district.rebelControlled = json.rebelControlled;
 		return district;
 	}
 

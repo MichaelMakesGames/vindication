@@ -26,12 +26,19 @@ let gameState: GameState = {
     number: 1,
     rebel: null,
     authority: null
-  }
+  },
+  rebelControlled: [],
+  uncovered: [],
+  victor: null
 }
+const urbanDistricts = map.districts.filter(d => d.type === 'urban');
+const rebelStart = urbanDistricts[Math.floor(Math.random() * urbanDistricts.length)];
+gameState.rebelControlled.push(rebelStart.id);
+
 io.on('connection', socket => {
   socket.emit('map', map);
-  socket.emit('game-state', gameState);
   socket.emit('role', getRole());
+  socket.emit('game-state', gameState);
   socket.on('submit-turn', (role, turn) => {
     gameState = submitTurn(gameState, role, turn);
     if (gameState.turns.rebel && gameState.turns.authority) {
@@ -63,6 +70,10 @@ function submitTurn(state: GameState, role: string, turn: any): GameState {
 }
 
 function processTurn(state: GameState): GameState {
+  state.rebelControlled.push(state.turns.rebel.district);
+  if (state.rebelControlled.length === 15) state.victor = 'rebel';
+  if (state.turns.rebel.district === state.turns.authority.district) state.victor = 'authority';
+  if (state.rebelControlled.includes(state.turns.authority.district)) state.uncovered.push(state.turns.authority.district);
   state.turns.number++;
   state.turns.rebel = null;
   state.turns.authority = null;

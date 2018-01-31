@@ -30,17 +30,9 @@ let options = {
 	height: 1800,
 	seed: 762.0961349286894 //(getParameterByName('seed', null) || Math.random() * 1000) as number
 };
-// console.info(`requesting city with seed: ${options.seed}`);
-// let init = {
-// 	method: 'POST',
-// 	body: JSON.stringify(options), 
-// 	headers: new Headers({
-// 		'Content-Type': 'application/json'
-// 	})
-// };
-// fetch('/generate', init).then(response => {
-// 	return response.json();
-// }).then(mapJson => {
+
+let overlay = null;
+let turn = null;
 socket.on('map', mapJson => {
 	let map: Map = {
 		districts: [] as District[],
@@ -51,9 +43,13 @@ socket.on('map', mapJson => {
 		bridges: mapJson.bridges
 	};
 	map.districts = mapJson.districts.map(d => District.fromJson(d));
+	for (let district of map.districts) {
+		district.linkSites(map.districts);
+	}
+
 	render(map, options);
 	const tooltip = d3.select('#tooltip');
-	d3.select('#overlay').selectAll('polygon').data(map.districts).enter()
+	overlay = d3.select('#overlay').selectAll('polygon').data(map.districts).enter()
 		.append('polygon')
 		.attr('points', d => d.polygon.join(' '))
 		.classed('district', true)
@@ -67,9 +63,26 @@ socket.on('map', mapJson => {
 			} else {
 				tooltip.style('display', 'none');
 			}
+		})
+		.on('click', d => {
+			console.log('click', d);
+			if (role !== REBEL && role !== AUTHORITY) return;
+			if (d.type !== 'urban') return;
+			if (role === REBEL && d.rebelControlled) return;
+			if (role === REBEL && !d.neighbors.some(n => n.rebelControlled)) return;
+			turn = { district: d.id };
+			d3.select('#turn-marker').remove();
+			d3.select('#overlay').append('circle')
+				.attr('id', 'turn-marker')
+				.attr('r', 20)
+				.attr('cx', d.site[0])
+				.attr('cy', d.site[1])
+				.style('fill', role === REBEL ? 'red' : 'blue' );
 		});
 });
 
+const REBEL = 'rebel';
+const AUTHORITY = 'authority';
 let role = null;
 socket.on('role', r => {
 	document.getElementById('role').innerText = r;
@@ -83,14 +96,33 @@ socket.on('role', r => {
 });
 socket.on('game-state', updateGameState);
 
-function updateGameState(state: any) {
-	document.getElementById('turn').innerText = state.turns.number;
+function updateGameState(state: GameState) {
+	console.log('STATE', state);
+
+	if (role === REBEL || state.victor) {
+		d3.selectAll('.district').classed('rebel-controlled', d => state.rebelControlled.includes((d as District).id));
+	} else {
+		d3.selectAll('.district').classed('rebel-controlled', d => state.uncovered.includes((d as District).id));
+	}
+
+	d3.selectAll('.district').each(d => (d as District).rebelControlled = state.rebelControlled.includes((d as District).id));
+
+	document.getElementById('turn').innerText = state.turns.number.toString();
 	if (role === 'rebel' && state.turns.rebel || role === 'authority' && state.turns.authority) {
 		document.getElementById('submit-turn').innerText = 'Waiting for other player';
 	} else {
 		document.getElementById('submit-turn').innerText = 'Submit Turn';
 	}
+	document.getElementById('rebel-controlled').innerText = state.rebelControlled.length.toString();
+	document.getElementById('victor').innerText = state.victor || 'None';
+
+	if (state.victor) {
+		document.getElementById('submit-turn').style.display = 'none';
+	}
+
 }
 function submitTurn() {
-	socket.emit('submit-turn', role, {});
+	socket.emit('submit-turn', role, turn);
+	turn = null;
+	d3.select('#turn-marker').remove();
 }

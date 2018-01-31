@@ -74,6 +74,9 @@ svg {
   stroke-width: 0;
   stroke: #222;
 }
+.district.rebel-controlled {
+  fill: rgba(255, 0, 0, 0.25);
+}
 
 .district--selectable:hover {
   stroke-width: 5;
