@@ -48,6 +48,7 @@ socket.on('map', mapJson => {
 	}
 
 	render(map, options);
+
 	const tooltip = d3.select('#tooltip');
 	overlay = d3.select('#overlay').selectAll('polygon').data(map.districts).enter()
 		.append('polygon')
@@ -69,7 +70,8 @@ socket.on('map', mapJson => {
 			if (role !== REBEL && role !== AUTHORITY) return;
 			if (d.type !== 'urban') return;
 			if (role === REBEL && d.rebelControlled) return;
-			if (role === REBEL && !d.neighbors.some(n => n.rebelControlled)) return;
+			let nonRiverNeighbors = d.neighbors.filter(n => !d.rivers.includes(n) || d.bridges.includes(n));
+			if (role === REBEL && !nonRiverNeighbors.some(n => n.rebelControlled)) return;
 			turn = { district: d.id };
 			d3.select('#turn-marker').remove();
 			d3.select('#overlay').append('circle')
