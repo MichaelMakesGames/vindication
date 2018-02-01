@@ -99,6 +99,8 @@ socket.on('game-state', updateGameState);
 function updateGameState(state: GameState) {
 	console.log('STATE', state);
 
+	document.getElementById('log').innerHTML = state.log.map(l => `<p>${l}</p>`).reverse().join('');
+
 	if (role === REBEL || state.victor) {
 		d3.selectAll('.district').classed('rebel-controlled', d => state.rebelControlled.includes((d as District).id));
 	} else {

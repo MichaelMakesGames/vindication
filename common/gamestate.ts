@@ -6,7 +6,8 @@ export interface GameState {
   },
   rebelControlled: number[],
   uncovered: number[],
-  victor: 'rebel' | 'authority' | null
+  victor: 'rebel' | 'authority' | null,
+  log: string[]
 }
 
 export default GameState;

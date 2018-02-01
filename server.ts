@@ -29,7 +29,8 @@ let gameState: GameState = {
   },
   rebelControlled: [],
   uncovered: [],
-  victor: null
+  victor: null,
+  log: []
 }
 const urbanDistricts = map.districts.filter(d => d.type === 'urban');
 const rebelStart = urbanDistricts[Math.floor(Math.random() * urbanDistricts.length)];
@@ -71,11 +72,27 @@ function submitTurn(state: GameState, role: string, turn: any): GameState {
 
 function processTurn(state: GameState): GameState {
   state.rebelControlled.push(state.turns.rebel.district);
-  if (state.rebelControlled.length === 15) state.victor = 'rebel';
-  if (state.turns.rebel.district === state.turns.authority.district) state.victor = 'authority';
-  if (state.rebelControlled.includes(state.turns.authority.district)) state.uncovered.push(state.turns.authority.district);
+
+  let raidedDistrict = map.districts[state.turns.authority.district]
+
+  if (state.rebelControlled.includes(state.turns.authority.district)) {
+    state.uncovered.push(state.turns.authority.district);
+    state.log.push(`Raid in ${raidedDistrict.name} uncovers rebel menace!`);
+  } else {
+    state.log.push(`Police raid ${raidedDistrict.name}, no insurgents found`);
+  }
+
+  if (state.turns.rebel.district === state.turns.authority.district) {
+    state.victor = 'authority';
+    state.log.push(`Rebellion leadership captured during raid in ${raidedDistrict.name}`);
+  } else if (state.rebelControlled.length === 15) {
+    state.victor = 'rebel';
+    state.log.push(`The Old Regime has been toppled, long live the Revolution!`);
+  }
+
   state.turns.number++;
   state.turns.rebel = null;
   state.turns.authority = null;
+
   return state;
 }
