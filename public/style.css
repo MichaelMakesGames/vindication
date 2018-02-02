@@ -110,6 +110,18 @@ svg {
   overflow-y: auto;
 }
 
+.new-game-dialog {
+  position: fixed;
+  right: 0;
+  padding: 20px;
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  background: beige;
+  border: black 5px solid;
+  overflow-y: auto;
+}
+
 .tooltip {
   position: absolute;
   background: beige;

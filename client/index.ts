@@ -10,31 +10,58 @@ import * as io from 'socket.io-client';
 
 const socket = io();
 
-/**
- * From SO post: https://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript/901144#901144
- * @param name 
- * @param url 
- */
-function getParameterByName(name, url) {
-	if (!url) url = window.location.href;
-	name = name.replace(/[\[\]]/g, "\\$&");
-	var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)");
-	var results = regex.exec(url);
-	if (!results) return null;
-	if (!results[2]) return '';
-	return decodeURIComponent(results[2].replace(/\+/g, " "));
+const REBEL = 'rebel';
+const AUTHORITY = 'authority';
+const startGameButton = document.getElementById('start-game');
+const joinGameButton = document.getElementById('join-game');
+const seedInput: HTMLInputElement = document.getElementById('seed-input') as HTMLInputElement;
+const roleInput: HTMLSelectElement = document.getElementById('role-input') as HTMLSelectElement;
+const newGameDialog: HTMLElement = document.getElementById('new-game-dialog');
+
+function onStartGameClick() {
+	const seed = seedInput.value;
+	const role = roleInput.value;
+	socket.emit('start-game', {seed, role});
 }
+startGameButton.addEventListener('click', onStartGameClick);
 
-let options = {
-	width: 3200,
-	height: 1800,
-	seed: 762.0961349286894 //(getParameterByName('seed', null) || Math.random() * 1000) as number
-};
+function onJoinGameClick() {
+	const role = roleInput.value;
+	socket.emit('join-game', role);
+}
+joinGameButton.addEventListener('click', onJoinGameClick);
 
+let role: string = null;
+let state: GameState = null;
 let overlay = null;
 let turn = null;
 let map: Map = null;
-socket.on('map', mapJson => {
+
+function socketOnRoles(roles: string[]) {
+	roleInput.innerHTML = roles.map(role => `<option value="${role}">${role}</option>`).join('');
+}
+socket.on('roles', socketOnRoles);
+
+function socketOnStartGame() {
+	startGameButton.style.display = 'none';
+	joinGameButton.style.display = 'inline-block';
+	seedInput.parentElement.style.display = 'none';
+}
+socket.on('start-game', socketOnStartGame);
+
+function socketOnJoinGame(roleAndMap) {
+	newGameDialog.style.display = 'none';
+
+	role = roleAndMap.role;
+	document.getElementById('role').innerText = role;
+	if (role === 'observer') {
+		document.getElementById('submit-turn').onclick = null;
+		document.getElementById('submit-turn').style.display = 'none';
+	} else {
+		document.getElementById('submit-turn').onclick = submitTurn;
+	}
+
+	const mapJson = roleAndMap.map;
 	map = {
 		districts: [] as District[],
 		coasts: mapJson.coasts,
@@ -48,7 +75,11 @@ socket.on('map', mapJson => {
 		district.linkSites(map.districts);
 	}
 
-	render(map, options);
+	render(map, {
+		width: 3200,
+		height: 1800,
+		seed: 0 // not used for rendering
+	});
 
 	const tooltip = d3.select('#tooltip');
 	overlay = d3.select('#overlay').selectAll('polygon').data(map.districts).enter()
@@ -86,25 +117,10 @@ socket.on('map', mapJson => {
 				.attr('cy', d.site[1])
 				.style('fill', role === REBEL ? 'red' : 'blue' );
 		});
-});
+}
+socket.on('join-game', socketOnJoinGame);
 
-const REBEL = 'rebel';
-const AUTHORITY = 'authority';
-let role: string = null;
-let state: GameState = null;
-socket.on('role', r => {
-	document.getElementById('role').innerText = r;
-	role = r;
-	if (role === 'observer') {
-		document.getElementById('submit-turn').onclick = null;
-		document.getElementById('submit-turn').style.display = 'none';
-	} else {
-		document.getElementById('submit-turn').onclick = submitTurn;
-	}
-});
-socket.on('game-state', updateGameState);
-
-function updateGameState(newState: GameState) {
+function socketOnGameState(newState: GameState) {
 	state = newState;
 	console.log('STATE', state);
 
@@ -141,8 +157,9 @@ function updateGameState(newState: GameState) {
 	if (state.victor) {
 		document.getElementById('submit-turn').style.display = 'none';
 	}
-
 }
+socket.on('game-state', socketOnGameState);
+
 function submitTurn() {
 	socket.emit('submit-turn', role, turn);
 	turn = null;
