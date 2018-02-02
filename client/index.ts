@@ -33,8 +33,9 @@ let options = {
 
 let overlay = null;
 let turn = null;
+let map: Map = null;
 socket.on('map', mapJson => {
-	let map: Map = {
+	map = {
 		districts: [] as District[],
 		coasts: mapJson.coasts,
 		river: mapJson.river,
@@ -69,9 +70,13 @@ socket.on('map', mapJson => {
 			console.log('click', d);
 			if (role !== REBEL && role !== AUTHORITY) return;
 			if (d.type !== 'urban') return;
-			if (role === REBEL && d.rebelControlled) return;
-			let nonRiverNeighbors = d.neighbors.filter(n => !d.rivers.includes(n) || d.bridges.includes(n));
-			if (role === REBEL && !nonRiverNeighbors.some(n => n.rebelControlled)) return;
+			if (role === REBEL) {
+				let rebelPosition = map.districts[state.rebelPosition];
+				let nonRiverNeighbors = d.neighbors.filter(n => !d.rivers.includes(n) || d.bridges.includes(n));
+				if (!nonRiverNeighbors.includes(rebelPosition)) {
+					return;
+				}
+			}
 			turn = { district: d.id };
 			d3.select('#turn-marker').remove();
 			d3.select('#overlay').append('circle')
@@ -85,7 +90,8 @@ socket.on('map', mapJson => {
 
 const REBEL = 'rebel';
 const AUTHORITY = 'authority';
-let role = null;
+let role: string = null;
+let state: GameState = null;
 socket.on('role', r => {
 	document.getElementById('role').innerText = r;
 	role = r;
@@ -98,8 +104,19 @@ socket.on('role', r => {
 });
 socket.on('game-state', updateGameState);
 
-function updateGameState(state: GameState) {
+function updateGameState(newState: GameState) {
+	state = newState;
 	console.log('STATE', state);
+
+	d3.select('#rebel-position').remove();
+	if (role === REBEL) {
+		d3.select('#overlay').append('circle')
+			.attr('id', 'rebel-position')
+			.attr('r', 10)
+			.attr('cx', map.districts[state.rebelPosition].site[0])
+			.attr('cy', map.districts[state.rebelPosition].site[1])
+			.style('fill', 'red');
+	}
 
 	document.getElementById('log').innerHTML = state.log.map(l => `<p>${l}</p>`).reverse().join('');
 
@@ -108,6 +125,7 @@ function updateGameState(state: GameState) {
 	} else {
 		d3.selectAll('.district').classed('rebel-controlled', d => state.uncovered.includes((d as District).id));
 	}
+	d3.selectAll('.district').classed('patrolled', d => state.patrols.includes((d as District).id));
 
 	d3.selectAll('.district').each(d => (d as District).rebelControlled = state.rebelControlled.includes((d as District).id));
 

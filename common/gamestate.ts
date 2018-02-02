@@ -5,7 +5,9 @@ export interface GameState {
     authority: any | null
   },
   rebelControlled: number[],
+  rebelPosition: number,
   uncovered: number[],
+  patrols: number[],
   victor: 'rebel' | 'authority' | null,
   log: string[]
 }

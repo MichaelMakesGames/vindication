@@ -19,7 +19,7 @@ app.post('/generate', (req, res) => {
 let map = generate({
 	width: 3200,
 	height: 1800,
-	seed: 762.0961349286894
+	seed: 762
 });
 let gameState: GameState = {
   turns: {
@@ -28,13 +28,16 @@ let gameState: GameState = {
     authority: null
   },
   rebelControlled: [],
+  rebelPosition: 0,
   uncovered: [],
+  patrols: [],
   victor: null,
   log: []
 }
 const urbanDistricts = map.districts.filter(d => d.type === 'urban');
 const rebelStart = urbanDistricts[Math.floor(Math.random() * urbanDistricts.length)];
 gameState.rebelControlled.push(rebelStart.id);
+gameState.rebelPosition = rebelStart.id;
 
 io.on('connection', socket => {
   socket.emit('map', map);
@@ -71,24 +74,39 @@ function submitTurn(state: GameState, role: string, turn: any): GameState {
 }
 
 function processTurn(state: GameState): GameState {
-  state.rebelControlled.push(state.turns.rebel.district);
 
-  let raidedDistrict = map.districts[state.turns.authority.district]
+  let rebelDistrict = map.districts[state.turns.rebel.district];
+  let authorityDistrict = map.districts[state.turns.authority.district];
 
-  if (state.rebelControlled.includes(state.turns.authority.district)) {
-    state.uncovered.push(state.turns.authority.district);
-    state.log.push(`Raid in ${raidedDistrict.name} uncovers rebel menace!`);
-  } else {
-    state.log.push(`Police raid ${raidedDistrict.name}, no insurgents found`);
+  state.rebelPosition = rebelDistrict.id;
+
+  if (!state.rebelControlled.includes(rebelDistrict.id)) {
+    state.rebelControlled.push(rebelDistrict.id);
+    if (state.patrols.includes(rebelDistrict.id)) {
+      state.patrols = state.patrols.filter(id => id !== rebelDistrict.id);
+      state.uncovered.push(rebelDistrict.id);
+      state.log.push(`Police patrols driven out of ${rebelDistrict.name}, rebel leadership seen leading attack`);
+    }
   }
-
-  if (state.turns.rebel.district === state.turns.authority.district) {
+  if (rebelDistrict === authorityDistrict) {
     state.victor = 'authority';
-    state.log.push(`Rebellion leadership captured during raid in ${raidedDistrict.name}`);
-  } else if (state.rebelControlled.length === 15) {
+    state.log.push(`Rebellion leadership captured during raid in ${authorityDistrict.name}`);
+  } else  if (state.rebelControlled.length === 15) {
     state.victor = 'rebel';
     state.log.push(`The Old Regime has been toppled, long live the Revolution!`);
+  } else if (state.uncovered.includes(authorityDistrict.id)) {
+    state.uncovered = state.uncovered.filter(id => id !== authorityDistrict.id);
+    state.rebelControlled = state.rebelControlled.filter(id => id !== authorityDistrict.id);
+    state.patrols.push(authorityDistrict.id);
+    state.log.push(`Raid in ${authorityDistrict.name}, rebels on the retreat!`);
+  } else if (state.rebelControlled.includes(state.turns.authority.district)) {
+    state.uncovered.push(authorityDistrict.id);
+    state.log.push(`Police uncover rebel menace in ${authorityDistrict.name}`)
+  } else {
+    state.patrols.push(authorityDistrict.id);
+    state.log.push(`New patrols established in ${authorityDistrict.name}, no insurgents found`);
   }
+
 
   state.turns.number++;
   state.turns.rebel = null;
