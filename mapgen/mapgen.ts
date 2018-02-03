@@ -49,7 +49,7 @@ const MID_STREET_WIDTH = 4;
 
 const OUTER_CHAOS = 0;
 const OUTER_BLOCK_SIZE = 1200;
-const OUTER_STREET_WIDTH = 6;
+const OUTER_STREET_WIDTH = 4;
 
 const SITE_GRID_SIZE = 100;
 
@@ -523,7 +523,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		let inset: number = 0;
 		if (districtType === 'rural') inset = 1;
 		if (districtType === 'village') inset = 3;
-		if (districtType === 'urban') inset = 2.5;
+		if (districtType === 'urban') inset = 3; //2.5;
 		if (inset) {
 			for (let point of district.polygon) geometry.insetPolygonEdge(district.polygon, point, inset);
 		}
