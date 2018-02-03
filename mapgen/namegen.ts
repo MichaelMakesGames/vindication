@@ -8,9 +8,6 @@ export function generateName(district: District, rng): string {
 }
 
 const MODIFIERS =[
-  'William\'s',
-  'Saint James\'',
-
   'King\'s',
   'Queen\'s',
   'Duke\'s',
@@ -24,14 +21,22 @@ const MODIFIERS =[
   'Brewers\'',
   'Weavers\'',
   'Chemists\'',
+  'Smiths\'',
+  'Dyers\'',
+  'Soldiers\'',
 
   'Fish',
-  'Knott',
+  'Salt',
   'Ox',
+  'Cloth',
+
+  'Knott',
   'Dragon',
-  
+
   'New',
   'Old',
+  'Low',
+  'High',
   'Black',
   'Green',
   'Red',
@@ -57,6 +62,10 @@ const NOUNS = [
   'Way',
   'Road',
   'Path',
+  'Avenue',
+  'Alleys',
+  'Labyrinth',
+  'Garden',
   'Heights',
   'Fort',
   'Burg',
