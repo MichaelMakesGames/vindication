@@ -69,6 +69,11 @@ socket.on('start-game', socketOnStartGame);
 
 function socketOnJoinGame(roleAndMap) {
 	newGameDialog.style.display = 'none';
+	document.addEventListener('keydown', e => {
+		if (e.key == 'Enter') {
+			submitTurn();
+		}
+	});
 
 	role = roleAndMap.role;
 	document.getElementById('role').innerText = role;
