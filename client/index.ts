@@ -1,5 +1,5 @@
 import { generate } from './mapgen';
-import { render } from './render';
+import { render, renderPreview } from './render';
 import { Options } from '../common/options';
 import { Map, MapJson } from '../common/map';
 import { District, DistrictJson } from '../common/district';
@@ -14,6 +14,8 @@ const REBEL = 'rebel';
 const AUTHORITY = 'authority';
 const startGameButton = document.getElementById('start-game');
 const joinGameButton = document.getElementById('join-game');
+const previewMapButton = document.getElementById('preview-map');
+const randomSeedButton = document.getElementById('random-seed');
 const seedInput: HTMLInputElement = document.getElementById('seed-input') as HTMLInputElement;
 const roleInput: HTMLSelectElement = document.getElementById('role-input') as HTMLSelectElement;
 const newGameDialog: HTMLElement = document.getElementById('new-game-dialog');
@@ -31,6 +33,20 @@ function onJoinGameClick() {
 }
 joinGameButton.addEventListener('click', onJoinGameClick);
 
+function onRandomSeedClick() {
+	seedInput.value = Math.floor(Math.random() * 1000000).toString();
+}
+randomSeedButton.addEventListener('click', onRandomSeedClick);
+
+function onPreviewMapClick() {
+	const seed = seedInput.value;
+	if (seed !== '' && isFinite(parseFloat(seed))){
+		socket.emit('preview-map', parseFloat(seed));
+	}
+}
+previewMapButton.addEventListener('click', onPreviewMapClick);
+socket.on('preview-map', renderPreview);
+
 let role: string = null;
 let state: GameState = null;
 let overlay = null;
@@ -46,6 +62,8 @@ function socketOnStartGame() {
 	startGameButton.style.display = 'none';
 	joinGameButton.style.display = 'inline-block';
 	seedInput.parentElement.style.display = 'none';
+	previewMapButton.style.display = 'none';
+	randomSeedButton.style.display = 'none';
 }
 socket.on('start-game', socketOnStartGame);
 

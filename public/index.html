@@ -15,10 +15,15 @@
 	</div>
 	<div class="log" id="log"></div>
 	<div class="new-game-dialog" id="new-game-dialog">
-		<div><label>Seed: <input type="number" id="seed-input"/></label></div>
+		<div>
+			<label>Seed: <input type="number" id="seed-input"/></label>
+			<button id="random-seed">Random</button>
+			<button id="preview-map">Preview Map</button>
+		</div>
 		<div><label>Role: <select id="role-input"></select></label></div>
 		<button id="start-game">Start Game</button>
 		<button id="join-game" style="display: none;">Join Game</button>
+		<div><svg id="map-preview" style="width: 600px; height: 320px;"></svg></div>
 	</div>
 
 	<div class="tooltip" id="tooltip" style="display: none;"></div>

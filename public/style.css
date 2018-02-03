@@ -130,3 +130,30 @@ svg {
   box-shadow: black 0px 0px 10px;
   pointer-events: none;
 }
+
+.preview-urban-district {
+  stroke: white;
+  stroke-width: 1;
+  fill: #888
+}
+.preview-water-district {
+  stroke-width: 0;
+  fill: rgb(100,100,200);
+}
+.preview-rural-district {
+  stroke: white;
+  stroke-width: 1;
+  fill: rgb(200, 255, 200);
+}
+.preview-river-outline {
+  stroke: white;
+  fill: none;
+}
+.preview-river {
+  stroke: rgb(100,100,200);
+  fill: none;
+}
+.preview-bridge {
+  stroke: white;
+  stroke-width: 5;
+}

@@ -21,7 +21,17 @@ io.on('connection', socket => {
   socket.emit('roles', roles);
   if (gameState) {
     socket.emit('start-game');
+    socket.emit('preview-map', map, {width: 3200, height: 1800, seed: 0});
   }
+
+  socket.on('preview-map', seed => {
+    const options = {
+      width: 3200,
+      height: 1800,
+      seed
+    }
+    socket.emit('preview-map', generate(options), options);
+  });
 
   function assignRole(requestedRole) {
     role = requestedRole;
@@ -74,7 +84,7 @@ io.on('connection', socket => {
     if (role && role !== 'observer') {
       roles.push(role);
     }
-  })
+  });
 
   socket.on('submit-turn', (role, turn) => {
     gameState = submitTurn(gameState, role, turn);

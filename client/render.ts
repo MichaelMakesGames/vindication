@@ -1,8 +1,38 @@
 import * as d3 from 'd3';
 import * as geometry from '../common/geometry';
-import Map from '../common/map';
+import { Map, MapJson } from '../common/map';
 import { Options } from '../common/options'
 import District from '../common/district';
+
+export function renderPreview(map: MapJson, options: Options): void {
+	const svg = d3.select('#map-preview');
+	svg.selectAll('*').remove();
+	svg.attr('viewBox', `100 100 ${options.width - 200} ${options.height - 200}`);
+
+	const districtTypeToClassName = {
+		'village': 'preview-urban-district',
+		'urban': 'preview-urban-district',
+		'rural': 'preview-rural-district',
+		'water': 'preview-water-district',
+		'plaza': 'preview-urban-district'
+	}
+	svg.selectAll('polygon').data(map.districts).enter().append('polygon')
+		.attr('points', d => d.originalPolygon.join(' '))
+		.attr('class', d => districtTypeToClassName[d.type]);
+	svg.append('polyline')
+		.attr('points', map.river.path.join(' '))
+		.attr('stroke-width', map.river.width + 4)
+		.attr('class', 'preview-river-outline');
+	svg.append('polyline')
+		.attr('points', map.river.path.join(' '))
+		.attr('stroke-width', map.river.width)
+		.attr('class', 'preview-river');
+	map.bridges.forEach(bridge => {
+		svg.append('polyline')
+			.attr('points', bridge.join(' '))
+			.attr('class', 'preview-bridge');
+	});
+}
 
 export function render(map: Map, options: Options): void {
 	let svg = d3.select('#map')
@@ -270,40 +300,4 @@ export function renderRiver(path: geometry.Point[], width: number = 40): void {
 		width -= 2 * i;
 		if (width < 2 * i) done = true;
 	}
-	// d3River.append('path')
-	// 	.attr('d', riverLine(path))
-	// 	.attr('fill', 'none')
-	// 	.attr('stroke-linecap', 'round')
-	// 	.attr('stroke', 'rgb(100, 100, 200)')
-	// 	.attr('stroke-width', 15);
-	// d3River.append('path')
-	// 	.attr('fill', 'none')
-	// 	.attr('d', riverLine(path))
-	// 	.attr('stroke-linecap', 'round')
-	// 	.attr('stroke', 'rgb(200, 200, 255)')
-	// 	.attr('stroke-width', 13);
-	// d3River.append('path')
-	// 	.attr('d', riverLine(path))
-	// 	.attr('stroke-linecap', 'round')
-	// 	.attr('fill', 'none')
-	// 	.attr('stroke', 'rgb(100, 100, 200)')
-	// 	.attr('stroke-width', 11);
-	// d3River.append('path')
-	// 	.attr('fill', 'none')
-	// 	.attr('d', riverLine(path))
-	// 	.attr('stroke-linecap', 'round')
-	// 	.attr('stroke', 'rgb(200, 200, 255)')
-	// 	.attr('stroke-width', 9);
-	// d3River.append('path')
-	// 	.attr('d', riverLine(path))
-	// 	.attr('fill', 'none')
-	// 	.attr('stroke-linecap', 'round')
-	// 	.attr('stroke', 'rgb(100, 100, 200)')
-	// 	.attr('stroke-width', 5);
-	// d3River.append('path')
-	// 	.attr('fill', 'none')
-	// 	.attr('d', riverLine(path))
-	// 	.attr('stroke-linecap', 'round')
-	// 	.attr('stroke', 'rgb(200, 200, 255)')
-	// 	.attr('stroke-width', 3);
 }
