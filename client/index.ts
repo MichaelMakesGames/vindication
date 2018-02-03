@@ -38,6 +38,7 @@ joinGameButton.addEventListener('click', onJoinGameClick);
 
 function onRandomSeedClick() {
 	seedInput.value = Math.floor(Math.random() * 1000000).toString();
+	onPreviewMapClick();
 }
 randomSeedButton.addEventListener('click', onRandomSeedClick);
 
@@ -100,7 +101,6 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 		.append('polygon')
 		.attr('points', d => d.polygon.join(' '))
 		.classed('district', true)
-		//.classed('district--selectable', d => d.type === 'urban')
 		.on('mousemove', d => {
 			if (d.type === 'urban') {
 				tooltip.style('display', 'block')
@@ -148,7 +148,7 @@ function closeActionsModal() {
 	actionsModal.style.display = 'none';
 }
 actionsModal.addEventListener('click', closeActionsModal);
-actionsContainer.addEventListener('click', ev => ev.stopPropagation());
+actionsContainer.parentElement.addEventListener('click', ev => ev.stopPropagation());
 
 function socketOnGameState(newState: GameState) {
 	state = newState;
