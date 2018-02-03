@@ -377,24 +377,32 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		newVillage.streetWidth = VILLAGE_STREET_WIDTH;
 	}
 
-	// place bridges between neighboring villages across rivers
-	for (let village of districts.filter(d => d.type === 'village')) {
+	// place bridges on villages on river
+	for (let village of districts.filter(d => d.type === 'village').filter(d => d.rivers.length)) {
+		// first place bridges between fillages
 		for (let neighbor of village.neighbors.filter(d => d.type === 'village')) {
 			if (village.rivers.includes(neighbor)) {
 				village.bridges.push(neighbor);
-				// TODO clean up bridge drawing code
-				let edge = geometry.findCommonEdge(village.polygon, neighbor.polygon);
-				let slope = geometry.calcPerpendicularSlope(edge);
-				let point = geometry.calcMidPoint(edge);
-				let theta = Math.atan(slope);
-				let dx = Math.cos(theta) * (riverWidth / 2 + 3);
-				let dy = Math.sin(theta) * (riverWidth / 2 + 3);
-				let bridgeEdge: Edge = [
-					[point[0] + dx, point[1] + dy],
-					[point[0] - dx, point[1] - dy]
-				];
-				map.bridges.push(bridgeEdge);
 			}
+		}
+		// if still no bridges, choose a random neighbor across the river
+		if (!village.bridges.length) {
+			village.bridges.push(village.rivers[Math.floor(rng.random() * village.rivers.length)]);
+		}
+
+		for (let neighbor of village.bridges) {
+			// TODO clean up bridge drawing code
+			let edge = geometry.findCommonEdge(village.polygon, neighbor.polygon);
+			let slope = geometry.calcPerpendicularSlope(edge);
+			let point = geometry.calcMidPoint(edge);
+			let theta = Math.atan(slope);
+			let dx = Math.cos(theta) * (riverWidth / 2 + 3);
+			let dy = Math.sin(theta) * (riverWidth / 2 + 3);
+			let bridgeEdge: Edge = [
+				[point[0] + dx, point[1] + dy],
+				[point[0] - dx, point[1] - dy]
+			];
+			map.bridges.push(bridgeEdge);
 		}
 	}
 
