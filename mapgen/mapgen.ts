@@ -387,7 +387,9 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		}
 		// if still no bridges, choose a random neighbor across the river
 		if (!village.bridges.length) {
-			village.bridges.push(village.rivers[Math.floor(rng.random() * village.rivers.length)]);
+			const bridgeTo = village.rivers[Math.floor(rng.random() * village.rivers.length)];
+			village.bridges.push(bridgeTo);
+			bridgeTo.bridges.push(village);
 		}
 
 		for (let neighbor of village.bridges) {

@@ -4,7 +4,8 @@ import * as express from 'express';
 import * as http from 'http';
 import * as socketIo from 'socket.io';
 import GameState from './common/gamestate';
-import { MapJson } from './common/map';
+import { Map, MapJson, mapFromJson } from './common/map';
+import { getAvailableActions } from './common/gamelogic';
 
 const app = express();
 const httpServer = new http.Server(app);
@@ -14,14 +15,15 @@ app.use(express.static('public'));
 app.use(bodyParser.json())
 
 let roles = ['rebel', 'authority', 'observer'];
-let map: MapJson = null;
+let mapJson: MapJson = null;
+let map: Map = null;
 let gameState: GameState = null;
 
 io.on('connection', socket => {
   socket.emit('roles', roles);
   if (gameState) {
     socket.emit('start-game');
-    socket.emit('preview-map', map, {width: 3200, height: 1800, seed: 0});
+    socket.emit('preview-map', mapJson, {width: 3200, height: 1800, seed: 0});
   }
 
   socket.on('preview-map', seed => {
@@ -42,11 +44,12 @@ io.on('connection', socket => {
   }
 
   socket.on('start-game', ({seed, role}) => {
-    map = generate({
+    mapJson = generate({
       width: 3200,
       height: 1800,
       seed: parseFloat(seed || Math.random() * 1000000)
     });
+    map = mapFromJson(mapJson);
     gameState = {
       turns: {
         number: 1,
@@ -60,14 +63,14 @@ io.on('connection', socket => {
       victor: null,
       log: []
     };
-    const urbanDistricts = map.districts.filter(d => d.type === 'urban');
+    const urbanDistricts = mapJson.districts.filter(d => d.type === 'urban');
     const rebelStart = urbanDistricts[Math.floor(Math.random() * urbanDistricts.length)];
     gameState.rebelControlled.push(rebelStart.id);
     gameState.rebelPosition = rebelStart.id;
 
     io.emit('start-game');
     assignRole(role);
-    socket.emit('join-game', {role, map});
+    socket.emit('join-game', {role, mapJson});
     socket.emit('game-state', gameState);
   });
 
@@ -75,7 +78,7 @@ io.on('connection', socket => {
   socket.on('join-game', requestedRole => {
     if (roles.includes(requestedRole)) {
       assignRole(requestedRole);
-      socket.emit('join-game', {role, map});
+      socket.emit('join-game', {role, mapJson});
       socket.emit('game-state', gameState);
     }
   });
@@ -95,13 +98,19 @@ io.on('connection', socket => {
 
     if (gameState.victor) {
       roles = ['rebel', 'authority', 'observer'];
-      map = null;
+      mapJson = null;
       gameState = null;
     }
   });
 });
 
-function submitTurn(state: GameState, role: string, turn: any): GameState {
+function submitTurn(state: GameState, role: string, turn: {district: number, action: string}): GameState {
+  // validate turn
+  if (!turn) return state;
+  const district = map.districts[turn.district];
+  const actions = getAvailableActions(role, district, state);
+  if (!actions.includes(turn.action)) return state;
+
   if (role === 'rebel') {
     state.turns.rebel = turn;
   }
@@ -113,8 +122,8 @@ function submitTurn(state: GameState, role: string, turn: any): GameState {
 
 function processTurn(state: GameState): GameState {
 
-  let rebelDistrict = map.districts[state.turns.rebel.district];
-  let authorityDistrict = map.districts[state.turns.authority.district];
+  let rebelDistrict = mapJson.districts[state.turns.rebel.district];
+  let authorityDistrict = mapJson.districts[state.turns.authority.district];
 
   state.rebelPosition = rebelDistrict.id;
 

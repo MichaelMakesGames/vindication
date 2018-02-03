@@ -1,10 +1,11 @@
 import { generate } from './mapgen';
 import { render, renderPreview } from './render';
 import { Options } from '../common/options';
-import { Map, MapJson } from '../common/map';
+import { Map, MapJson, mapFromJson } from '../common/map';
 import { District, DistrictJson } from '../common/district';
 import { arePointsEquivalent } from '../common/geometry';
 import { GameState } from '../common/gamestate';
+import { getAvailableActions } from '../common/gamelogic';
 import * as d3 from 'd3';
 import * as io from 'socket.io-client';
 
@@ -16,6 +17,8 @@ const startGameButton = document.getElementById('start-game');
 const joinGameButton = document.getElementById('join-game');
 const previewMapButton = document.getElementById('preview-map');
 const randomSeedButton = document.getElementById('random-seed');
+const actionsModal = document.getElementById('actions-modal');
+const actionsContainer = document.getElementById('actions');
 const seedInput: HTMLInputElement = document.getElementById('seed-input') as HTMLInputElement;
 const roleInput: HTMLSelectElement = document.getElementById('role-input') as HTMLSelectElement;
 const newGameDialog: HTMLElement = document.getElementById('new-game-dialog');
@@ -67,10 +70,10 @@ function socketOnStartGame() {
 }
 socket.on('start-game', socketOnStartGame);
 
-function socketOnJoinGame(roleAndMap) {
+function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 	newGameDialog.style.display = 'none';
 	document.addEventListener('keydown', e => {
-		if (e.key == 'Enter') {
+		if (e.key === 'Enter' || e.key === ' ') {
 			submitTurn();
 		}
 	});
@@ -84,19 +87,7 @@ function socketOnJoinGame(roleAndMap) {
 		document.getElementById('submit-turn').onclick = submitTurn;
 	}
 
-	const mapJson = roleAndMap.map;
-	map = {
-		districts: [] as District[],
-		coasts: mapJson.coasts,
-		river: mapJson.river,
-		subRiver: mapJson.subRiver,
-		sprawl: mapJson.sprawl,
-		bridges: mapJson.bridges
-	};
-	map.districts = mapJson.districts.map(d => District.fromJson(d));
-	for (let district of map.districts) {
-		district.linkSites(map.districts);
-	}
+	map = mapFromJson(roleAndMap.mapJson);
 
 	render(map, {
 		width: 3200,
@@ -109,7 +100,7 @@ function socketOnJoinGame(roleAndMap) {
 		.append('polygon')
 		.attr('points', d => d.polygon.join(' '))
 		.classed('district', true)
-		.classed('district--selectable', d => d.type === 'urban')
+		//.classed('district--selectable', d => d.type === 'urban')
 		.on('mousemove', d => {
 			if (d.type === 'urban') {
 				tooltip.style('display', 'block')
@@ -122,26 +113,42 @@ function socketOnJoinGame(roleAndMap) {
 		})
 		.on('click', d => {
 			console.log('click', d);
-			if (role !== REBEL && role !== AUTHORITY) return;
-			if (d.type !== 'urban') return;
-			if (role === REBEL) {
-				let rebelPosition = map.districts[state.rebelPosition];
-				let nonRiverNeighbors = d.neighbors.filter(n => !d.rivers.includes(n) || d.bridges.includes(n));
-				if (!nonRiverNeighbors.includes(rebelPosition)) {
-					return;
-				}
-			}
-			turn = { district: d.id };
+			const actions = getAvailableActions(role, d, state);
+			if (!actions.length) return;
+			console.log(actions);
+			openActionsModal(actions.map(action => {
+				return {district: d, action}
+			}));
+		});
+}
+socket.on('join-game', socketOnJoinGame);
+
+function openActionsModal(actions: {action: string, district: District}[]) {
+	d3.select('#actions').selectAll('button').data(actions)
+		.enter().append('button')
+		.classed('action', true)
+		.text(d => d.action)
+		.on('click', d => {
+			turn = {district: d.district.id, action: d.action};
 			d3.select('#turn-marker').remove();
 			d3.select('#overlay').append('circle')
 				.attr('id', 'turn-marker')
 				.attr('r', 20)
-				.attr('cx', d.site[0])
-				.attr('cy', d.site[1])
-				.style('fill', role === REBEL ? 'red' : 'blue' );
-		});
+				.attr('cx', d.district.site[0])
+				.attr('cy', d.district.site[1])
+				.style('fill', role === REBEL ? 'red' : 'blue' )
+				.style('pointer-events', 'none');
+			closeActionsModal();
+		})
+		.exit().on('click', null).remove();
+	actionsModal.style.display = 'block';
 }
-socket.on('join-game', socketOnJoinGame);
+
+function closeActionsModal() {
+	actionsModal.style.display = 'none';
+}
+actionsModal.addEventListener('click', closeActionsModal);
+actionsContainer.addEventListener('click', ev => ev.stopPropagation());
 
 function socketOnGameState(newState: GameState) {
 	state = newState;
@@ -154,8 +161,11 @@ function socketOnGameState(newState: GameState) {
 			.attr('r', 10)
 			.attr('cx', map.districts[state.rebelPosition].site[0])
 			.attr('cy', map.districts[state.rebelPosition].site[1])
-			.style('fill', 'red');
+			.style('fill', 'red')
+			.style('pointer-events', 'none');
 	}
+
+	overlay.classed('district--selectable', d => getAvailableActions(role, d, state).length);
 
 	document.getElementById('log').innerHTML = state.log.map(l => `<p>${l}</p>`).reverse().join('');
 
