@@ -124,6 +124,7 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 socket.on('join-game', socketOnJoinGame);
 
 function openActionsModal(actions: {action: string, district: District}[]) {
+	d3.select('#actions').selectAll('button').remove();
 	d3.select('#actions').selectAll('button').data(actions)
 		.enter().append('button')
 		.classed('action', true)
@@ -139,8 +140,7 @@ function openActionsModal(actions: {action: string, district: District}[]) {
 				.style('fill', role === REBEL ? 'red' : 'blue' )
 				.style('pointer-events', 'none');
 			closeActionsModal();
-		})
-		.exit().on('click', null).remove();
+		});
 	actionsModal.style.display = 'block';
 }
 
