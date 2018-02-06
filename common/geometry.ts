@@ -14,6 +14,19 @@ export function clonePolygon(p: Polygon): Polygon {
 	return p.map<Point>(point => clonePoint(point));
 }
 
+export function getBBoxCenter(polygon: Polygon): Point {
+	const xValues = polygon.map(point => point[0]);
+	const yValues = polygon.map(point => point[1]);
+	const xMin = Math.min(...xValues);
+	const xMax = Math.max(...xValues);
+	const yMin = Math.min(...yValues);
+	const yMax = Math.max(...yValues);
+	return [
+		(xMin + xMax) / 2,
+		(yMin + yMax) / 2
+	];
+}
+
 /**
  * Finds a rectangle that fits within the given convex polygon
  * 

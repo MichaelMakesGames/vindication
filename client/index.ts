@@ -3,7 +3,7 @@ import { render, renderPreview } from './render';
 import { Options } from '../common/options';
 import { Map, MapJson, mapFromJson } from '../common/map';
 import { District, DistrictJson } from '../common/district';
-import { arePointsEquivalent } from '../common/geometry';
+import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
 import { GameState } from '../common/gamestate';
 import { getAvailableActions } from '../common/gamelogic';
 import * as d3 from 'd3';
@@ -135,8 +135,8 @@ function openActionsModal(actions: {action: string, district: District}[]) {
 			d3.select('#overlay').append('circle')
 				.attr('id', 'turn-marker')
 				.attr('r', 20)
-				.attr('cx', d.district.site[0])
-				.attr('cy', d.district.site[1])
+				.attr('cx', getBBoxCenter(d.district.polygon)[0])
+				.attr('cy', getBBoxCenter(d.district.polygon)[1])
 				.style('fill', role === REBEL ? 'red' : 'blue' )
 				.style('pointer-events', 'none');
 			closeActionsModal();
@@ -159,8 +159,8 @@ function socketOnGameState(newState: GameState) {
 		d3.select('#overlay').append('circle')
 			.attr('id', 'rebel-position')
 			.attr('r', 10)
-			.attr('cx', map.districts[state.rebelPosition].site[0])
-			.attr('cy', map.districts[state.rebelPosition].site[1])
+			.attr('cx', getBBoxCenter(map.districts[state.rebelPosition].polygon)[0])
+			.attr('cy', getBBoxCenter(map.districts[state.rebelPosition].polygon)[1])
 			.style('fill', 'red')
 			.style('pointer-events', 'none');
 	}
