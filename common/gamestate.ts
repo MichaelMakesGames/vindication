@@ -1,3 +1,5 @@
+import Headline from './headline';
+
 export interface GameState {
   turns: {
     number: number,
@@ -9,7 +11,10 @@ export interface GameState {
   uncovered: number[],
   patrols: number[],
   victor: 'rebel' | 'authority' | null,
-  log: string[]
+  log: {
+    turn: number,
+    headlines: Headline[]
+  }[]
 }
 
 export default GameState;

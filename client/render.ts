@@ -41,6 +41,8 @@ export function render(map: Map, options: Options): void {
 		// .attr('height', 'auto')
 		.attr('viewBox', `100 100 ${options.width - 200} ${options.height - 200}`);
 	svg = svg.select('g');
+	
+	renderBorder(options);
 
 	map.coasts.forEach(coast => {
 		renderCoast(coast);
@@ -182,7 +184,7 @@ function renderDistrict(district: District, target: Element): void {
 	}
 }
 
-export function renderCoast(coast: geometry.Point[]): void {
+function renderCoast(coast: geometry.Point[]): void {
 	let d3Coast = d3.select('#coast');	
 
 	let line = d3.line()
@@ -274,7 +276,7 @@ export function renderCoast(coast: geometry.Point[]): void {
 		.attr('stroke-width', beachWidth);
 }
 
-export function renderRiver(path: geometry.Point[], width: number = 40): void {
+function renderRiver(path: geometry.Point[], width: number = 40): void {
 	let riverLine = d3.line()
 		.x(d => d[0])
 		.y(d => d[1])
@@ -300,4 +302,18 @@ export function renderRiver(path: geometry.Point[], width: number = 40): void {
 		width -= 2 * i;
 		if (width < 2 * i) done = true;
 	}
+}
+
+function renderBorder(options: Options): void {
+	d3.select('#map > defs')
+		.append('clipPath')
+		.attr('id', 'borderClip')
+		.append('rect')
+		.attr('x', 100)
+		.attr('y', 100)
+		.attr('width', options.width - 200)
+		.attr('height', options.height - 200);
+
+	d3.select('#map > g')
+		.attr('clip-path', 'url(#borderClip)');
 }

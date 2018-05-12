@@ -231,8 +231,8 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 	// add neighbors to districts
 	for (let edge of diagram.edges.filter(edge => edge && edge.left && edge.right)) {
-		let left = getDistrictBySite(edge.left);
-		let right = getDistrictBySite(edge.right);
+		let left = getDistrictBySite(edge.left as [number, number]);
+		let right = getDistrictBySite(edge.right as [number, number]);
 		left.neighbors.push(right);
 		right.neighbors.push(left);
 	}
@@ -284,8 +284,8 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	const coastEdges: Edge[] = [];
 	(() => {
 		for (let edge of diagram.edges.filter(edge => edge && edge.left && edge.right)) {
-			let leftDistrictType = getDistrictBySite(edge.left).type;
-			let rightDistrictType = getDistrictBySite(edge.right).type;
+			let leftDistrictType = getDistrictBySite(edge.left as Point).type;
+			let rightDistrictType = getDistrictBySite(edge.right as Point).type;
 			let leftIsWater = leftDistrictType === 'water';
 			let rightIsWater = rightDistrictType === 'water';
 			if ((leftIsWater && !rightIsWater) || (!leftIsWater && rightIsWater)) {
@@ -339,11 +339,11 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 		for (let edge of river.concat(subRiver)) {
 			let vEdge = diagram.edges.filter(Boolean).find(vEdge => {
-				return geometry.areEdgesEquivalent(vEdge, edge);
+				return geometry.areEdgesEquivalent(vEdge as Edge, edge);
 			});
 			if (!vEdge) break;
-			let left = vEdge.left ? getDistrictBySite(vEdge.left) : null;
-			let right = vEdge.right ? getDistrictBySite(vEdge.right) : null;
+			let left = vEdge.left ? getDistrictBySite(vEdge.left as Point) : null;
+			let right = vEdge.right ? getDistrictBySite(vEdge.right as Point) : null;
 			if (left && right) {
 				left.rivers.push(right);
 				right.rivers.push(left);
