@@ -1,5 +1,5 @@
 export interface Options {
-  width: number,
-  height: number,
-  seed: number
+	width: number;
+	height: number;
+	seed: number;
 }

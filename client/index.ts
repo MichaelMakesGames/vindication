@@ -1,13 +1,15 @@
-import { generate } from './mapgen';
-import { render, renderPreview } from './render';
-import { Options } from '../common/options';
-import { Map, MapJson, mapFromJson } from '../common/map';
-import { District, DistrictJson } from '../common/district';
-import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
-import { GameState } from '../common/gamestate';
-import { getAvailableActions } from '../common/gamelogic';
 import * as d3 from 'd3';
 import * as io from 'socket.io-client';
+
+import { District, DistrictJson } from '../common/district';
+import { getAvailableActions } from '../common/gamelogic';
+import { GameState } from '../common/gamestate';
+import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
+import { Map, mapFromJson, MapJson } from '../common/map';
+import { Options } from '../common/options';
+
+import { generate } from './mapgen';
+import { render, renderPreview } from './render';
 
 const socket = io();
 
@@ -42,26 +44,39 @@ randomSeedButton.addEventListener('click', onRandomSeedClick);
 
 function onPreviewMapClick() {
 	const seed = seedInput.value;
-	if (seed !== '' && isFinite(parseFloat(seed))){
+	if (seed !== '' && isFinite(parseFloat(seed))) {
 		socket.emit('preview-map', parseFloat(seed));
 	}
 }
 previewMapButton.addEventListener('click', onPreviewMapClick);
 socket.on('preview-map', renderPreview);
 
-let role: string = null;
-let state: GameState = null;
-let overlay: d3.Selection<SVGPolygonElement, District, SVGGElement, {}> = null;
-let turn = null;
-let map: Map = null;
-let selectedDistrict: District = null;
-let hoveredDistrict: District = null;
-let districtMenuOpen: boolean = false;
-let districtHoverEnabled: boolean = false;
-let scale = 1;
+const clientState: {
+	districtHoverEnabled: boolean,
+	districtMenuOpen: boolean,
+	hoveredDistrict: District,
+	map: Map,
+	overlay: d3.Selection<SVGPolygonElement, District, SVGGElement, {}>,
+	role: string,
+	selectedDistrict: District,
+	scale: number,
+	turn: any,
+} = {
+	districtHoverEnabled: false,
+	districtMenuOpen: false,
+	hoveredDistrict: null,
+	map: null,
+	overlay: null,
+	role: null,
+	scale: 1,
+	selectedDistrict: null,
+	turn: null,
+};
+
+let gameState: GameState = null;
 
 function socketOnRoles(roles: string[]) {
-	roleInput.innerHTML = roles.map(role => `<option value="${role}">${role}</option>`).join('');
+	roleInput.innerHTML = roles.map((role) => `<option value="${role}">${role}</option>`).join('');
 }
 socket.on('roles', socketOnRoles);
 
@@ -78,64 +93,63 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 	newGameDialog.style.display = 'none';
 
 	// set up key controls
-	document.addEventListener('keydown', e => {
+	document.addEventListener('keydown', (e) => {
 		// submit turn
 		if (e.key === 'Enter' || e.key === ' ') {
 			submitTurn();
 		}
-		
+
 		// pan up
 		if (e.key === 'w' || e.key === 'ArrowUp') {
-			let svg = document.getElementById('map');
-			let viewBox = svg.getAttribute('viewBox').split(' ');
-			let y = (Number(viewBox[1]) - 30 / scale).toString();
+			const svg = document.getElementById('map');
+			const viewBox = svg.getAttribute('viewBox').split(' ');
+			const y = (Number(viewBox[1]) - 30 / clientState.scale).toString();
 			viewBox[1] = y;
 			svg.setAttribute('viewBox', viewBox.join(' '));
 		}
-		
+
 		// pan left
 		if (e.key === 'a' || e.key === 'ArrowLeft') {
-			let svg = document.getElementById('map');
-			let viewBox = svg.getAttribute('viewBox').split(' ');
-			let x = (Number(viewBox[0]) - 30 / scale).toString();
+			const svg = document.getElementById('map');
+			const viewBox = svg.getAttribute('viewBox').split(' ');
+			const x = (Number(viewBox[0]) - 30 / clientState.scale).toString();
 			viewBox[0] = x;
 			svg.setAttribute('viewBox', viewBox.join(' '));
 		}
 
 		// pan down
 		if (e.key === 's' || e.key === 'ArrowDown') {
-			let svg = document.getElementById('map');
-			let viewBox = svg.getAttribute('viewBox').split(' ');
-			let y = (Number(viewBox[1]) + 30 / scale).toString();
+			const svg = document.getElementById('map');
+			const viewBox = svg.getAttribute('viewBox').split(' ');
+			const y = (Number(viewBox[1]) + 30 / clientState.scale).toString();
 			viewBox[1] = y;
 			svg.setAttribute('viewBox', viewBox.join(' '));
 		}
 
 		// pan right
 		if (e.key === 'd' || e.key === 'ArrowRight') {
-			let svg = document.getElementById('map');
-			let viewBox = svg.getAttribute('viewBox').split(' ');
-			let x = (Number(viewBox[0]) + 30 / scale).toString();
+			const svg = document.getElementById('map');
+			const viewBox = svg.getAttribute('viewBox').split(' ');
+			const x = (Number(viewBox[0]) + 30 / clientState.scale).toString();
 			viewBox[0] = x;
 			svg.setAttribute('viewBox', viewBox.join(' '));
 		}
 
 		// start district hover mode
 		if (e.key === 'Shift') {
-			if (hoveredDistrict) {
-				openDistrictBox(hoveredDistrict);
+			if (clientState.hoveredDistrict) {
+				openDistrictBox(clientState.hoveredDistrict);
 			}
-			districtHoverEnabled = true;
+			clientState.districtHoverEnabled = true;
 		}
-		console.log(e.key);
 	});
 
-	document.addEventListener('keyup', e => {
+	document.addEventListener('keyup', (e) => {
 		// stop district hover mode
 		if (e.key === 'Shift') {
-			districtHoverEnabled = false;
-			if (selectedDistrict) {
-				openDistrictBox(selectedDistrict);
+			clientState.districtHoverEnabled = false;
+			if (clientState.selectedDistrict) {
+				openDistrictBox(clientState.selectedDistrict);
 			} else {
 				closeDistrictBox();
 			}
@@ -143,62 +157,66 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 	});
 
 	// set up zoom and drag controls
-	const zoomed = function() {
-		scale = d3.event.transform.k;
+	const zoomed = () => {
+		clientState.scale = d3.event.transform.k;
 		d3.select('#map > g').attr('transform', d3.event.transform);
 	};
-	d3.select('#map').call(d3.zoom().filter(() => d3.event.type !== 'dblclick').clickDistance(10).on("zoom", zoomed));
+	d3.select('#map').call(d3.zoom().filter(() => d3.event.type !== 'dblclick').clickDistance(10).on('zoom', zoomed));
 
-
-	role = roleAndMap.role;
-	document.getElementById('role').innerText = role;
-	if (role === 'observer') {
+	clientState.role = roleAndMap.role;
+	document.getElementById('role').innerText = clientState.role;
+	if (clientState.role === 'observer') {
 		document.getElementById('submit-turn').onclick = null;
 		document.getElementById('submit-turn').style.display = 'none';
 	} else {
 		document.getElementById('submit-turn').onclick = submitTurn;
 	}
 
-	map = mapFromJson(roleAndMap.mapJson);
+	clientState.map = mapFromJson(roleAndMap.mapJson);
 
-	render(map, {
+	// tslint:disable:object-literal-sort-keys
+	render(clientState.map, {
 		width: 3200,
 		height: 1800,
-		seed: 0 // not used for rendering
+		seed: 0, // not used for rendering
 	});
+	// tslint:enable:object-literal-sort-keys
 
 	const tooltip = d3.select('#tooltip');
-	const centers = d3.select('#centers').selectAll('circle').data(map.districts.map(d => getBBoxCenter(d.polygon))).enter()
+	const centers = d3.select('#centers')
+		.selectAll('circle').data(clientState.map.districts.map((d) => getBBoxCenter(d.polygon))).enter()
 		.append('circle')
 		.attr('fill', 'none')
 		.attr('r', 0)
-		.attr('cx', d => d[0])
-		.attr('cy', d => d[1]);
-	overlay = d3.select<SVGGElement, {}>('#overlay')
+		.attr('cx', (d) => d[0])
+		.attr('cy', (d) => d[1]);
+	clientState.overlay = d3.select<SVGGElement, {}>('#overlay')
 		.selectAll<SVGPolygonElement, District>('polygon')
-		.data<District>(map.districts).enter()
+		.data<District>(clientState.map.districts).enter()
 		.append<SVGPolygonElement>('polygon')
-		.attr('points', d => d.polygon.join(' '))
+		.attr('points', (d) => d.polygon.join(' '))
 		.classed('district', true)
-		.on('mouseenter', d => {
-			hoveredDistrict = d;
-			if (districtHoverEnabled) {
-				openDistrictBox(hoveredDistrict);
+		.on('mouseenter', (d) => {
+			clientState.hoveredDistrict = d;
+			if (clientState.districtHoverEnabled) {
+				openDistrictBox(clientState.hoveredDistrict);
 			}
 		})
-		.on('click', d => {
-			if (selectedDistrict === d) {
+		.on('click', (d) => {
+			if (clientState.selectedDistrict === d) {
 				deselectDistrict();
 			} else {
 				selectDistrict(d);
 			}
 		})
-		.on('contextmenu', d => {
+		.on('contextmenu', (d) => {
 
 			d3.event.preventDefault();
 			closeActionsMenu();
-			const actions = getAvailableActions(role, d, state);
-			if (!actions.length) return;
+			const actions = getAvailableActions(clientState.role, d, gameState);
+			if (!actions.length) {
+				return;
+			}
 
 			const centerCircle = centers.nodes()[d.id] as SVGCircleElement;
 			tooltip.style('display', 'block')
@@ -206,90 +224,103 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 				.style('top', `${centerCircle.getBoundingClientRect().top}px`);
 			document.getElementById('tooltipDistrictName').innerText = d.name;
 
-			openActionsMenu(actions.map(action => {
-				return {district: d, action}
+			openActionsMenu(actions.map((action) => {
+				return {district: d, action};
 			}));
 		});
 }
 socket.on('join-game', socketOnJoinGame);
 
 function setTurn(district: District, action: string) {
-	turn = {district: district.id, action: action};
+	clientState.turn = {district: district.id, action};
 	d3.select('#turn-marker').remove();
 	d3.select('#overlay').append('circle')
 		.attr('id', 'turn-marker')
 		.attr('r', 20)
 		.attr('cx', getBBoxCenter(district.polygon)[0])
 		.attr('cy', getBBoxCenter(district.polygon)[1])
-		.style('fill', role === REBEL ? 'red' : 'blue' )
+		.style('fill', clientState.role === REBEL ? 'red' : 'blue' )
 		.style('pointer-events', 'none');
 }
 
-function openActionsMenu(actions: {action: string, district: District}[]) {
-	districtMenuOpen = true;
+function openActionsMenu(actions: Array<{action: string, district: District}>) {
+	clientState.districtMenuOpen = true;
 	d3.select('#tooltipActions').selectAll('button').remove();
 	d3.select('#tooltipActions').selectAll('li').data(actions)
 		.enter().append('li').append('button')
 		.classed('action', true)
-		.text(d => d.action)
-		.on('click', d => {
+		.text((d) => d.action)
+		.on('click', (d) => {
 			setTurn(d.district, d.action);
 		});
 }
 
 function closeActionsMenu() {
-	districtMenuOpen = false;
+	clientState.districtMenuOpen = false;
 	document.getElementById('tooltipActions').innerHTML = '';
 	document.getElementById('tooltip').style.display = 'none';
 }
 document.addEventListener('click', closeActionsMenu);
 
 function socketOnGameState(newState: GameState) {
-	state = newState;
-	console.log('STATE', state);
+	gameState = newState;
 
 	d3.select('#rebel-position').remove();
-	if (role === REBEL) {
+	if (clientState.role === REBEL) {
 		d3.select('#overlay').append('circle')
 			.attr('id', 'rebel-position')
 			.attr('r', 10)
-			.attr('cx', getBBoxCenter(map.districts[state.rebelPosition].polygon)[0])
-			.attr('cy', getBBoxCenter(map.districts[state.rebelPosition].polygon)[1])
+			.attr('cx', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon)[0])
+			.attr('cy', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon)[1])
 			.style('fill', 'red')
 			.style('pointer-events', 'none');
 	}
 
-	overlay.classed('district--selectable', d => !!getAvailableActions(role, d, state).length);
+	clientState.overlay.classed(
+		'district--selectable',
+		(d) => !!getAvailableActions(clientState.role, d, gameState).length,
+	);
 
-	document.getElementById('log').innerHTML = '<h3>Headlines</h3>' + state.log.map(l => `<h4>Day ${l.turn}</h4>` + l.headlines.map(h => `<p>${h.text}</p>`)).reverse().join('</br>');
+	document.getElementById('log').innerHTML =
+		'<h3>Headlines</h3>' +
+		gameState.log.map((l) => `<h4>Day ${l.turn}</h4>` +
+		l.headlines.map((h) => `<p>${h.text}</p>`)).reverse().join('</br>')
+	;
 
-	if (role === REBEL || state.victor) {
-		d3.selectAll('.district').classed('rebel-controlled', d => state.rebelControlled.includes((d as District).id));
+	if (clientState.role === REBEL || gameState.victor) {
+		d3.selectAll('.district')
+		.classed('rebel-controlled', (d) => gameState.rebelControlled.includes((d as District).id));
 	} else {
-		d3.selectAll('.district').classed('rebel-controlled', d => state.uncovered.includes((d as District).id));
+		d3.selectAll('.district')
+		.classed('rebel-controlled', (d) => gameState.uncovered.includes((d as District).id));
 	}
-	d3.selectAll('.district').classed('patrolled', d => state.patrols.includes((d as District).id));
+	d3.selectAll('.district').classed('patrolled', (d) => gameState.patrols.includes((d as District).id));
 
-	d3.selectAll('.district').each(d => (d as District).rebelControlled = state.rebelControlled.includes((d as District).id));
+	d3.selectAll('.district')
+		.each((d) => (d as District).rebelControlled = gameState.rebelControlled.includes((d as District).id));
 
-	document.getElementById('turn').innerText = state.turns.number.toString();
-	if (role === 'rebel' && state.turns.rebel || role === 'authority' && state.turns.authority) {
+	document.getElementById('turn').innerText = gameState.turns.number.toString();
+	if (
+		clientState.role === 'rebel' &&
+		gameState.turns.rebel ||
+		clientState.role === 'authority' &&
+		gameState.turns.authority) {
 		document.getElementById('submit-turn').innerText = 'Waiting for other player';
 	} else {
 		document.getElementById('submit-turn').innerText = 'Submit Turn';
 	}
-	document.getElementById('rebel-controlled').innerText = state.rebelControlled.length.toString();
-	document.getElementById('victor').innerText = state.victor || 'None';
+	document.getElementById('rebel-controlled').innerText = gameState.rebelControlled.length.toString();
+	document.getElementById('victor').innerText = gameState.victor || 'None';
 
-	if (state.victor) {
+	if (gameState.victor) {
 		document.getElementById('submit-turn').style.display = 'none';
 	}
 }
 socket.on('game-state', socketOnGameState);
 
 function submitTurn() {
-	socket.emit('submit-turn', role, turn);
-	turn = null;
+	socket.emit('submit-turn', clientState.role, clientState.turn);
+	clientState.turn = null;
 	d3.select('#turn-marker').remove();
 }
 
@@ -311,37 +342,37 @@ function openDistrictBox(district: District) {
 	districtImage.setAttribute('src', `/images/${ district.type.toLowerCase() }.jpg`);
 
 	const oldActions = Array.from(districtActions.children);
-	oldActions.forEach(child => districtActions.removeChild(child));
-	oldActions.forEach(child => child.remove());
-	const actions = getAvailableActions(role, district, state);
+	oldActions.forEach((child) => districtActions.removeChild(child));
+	oldActions.forEach((child) => child.remove());
+	const actions = getAvailableActions(clientState.role, district, gameState);
 	if (actions.length) {
-		noActionsMessage.style.display = "none";
-		actions.map(action => {
-			const button = document.createElement("button");
+		noActionsMessage.style.display = 'none';
+		actions.map((action) => {
+			const button = document.createElement('button');
 			button.innerHTML = action;
-			button.addEventListener("click", () => setTurn(district, action));
-			const li = document.createElement("li");
+			button.addEventListener('click', () => setTurn(district, action));
+			const li = document.createElement('li');
 			li.appendChild(button);
 			return li;
-		}).forEach(element => districtActions.appendChild(element));
+		}).forEach((element) => districtActions.appendChild(element));
 	} else {
-		noActionsMessage.style.display = "initial";
+		noActionsMessage.style.display = 'initial';
 	}
 }
 
 function closeDistrictBox() {
 	document.getElementById('districtBox').style.display = 'none';
-	overlay.classed('selected', false);
+	clientState.overlay.classed('selected', false);
 }
 
 function selectDistrict(district: District) {
-	selectedDistrict = district;
+	clientState.selectedDistrict = district;
 	openDistrictBox(district);
-	overlay.classed('selected', d => d === district);
+	clientState.overlay.classed('selected', (d) => d === district);
 }
 
 function deselectDistrict() {
-	selectedDistrict = null;
+	clientState.selectedDistrict = null;
 	closeDistrictBox();
 }
 document.getElementById('districtClose').addEventListener('click', deselectDistrict);

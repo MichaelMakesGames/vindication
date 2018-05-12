@@ -1,49 +1,49 @@
-import {Point, Polygon, Edge} from './geometry';
 import {District, DistrictJson} from './district';
+import { Edge, Point, Polygon } from './geometry';
 
 export interface Map {
-	coasts : Point[][],
-	districts : District[],
-	subRiver : {
+	coasts: Point[][];
+	districts: District[];
+	subRiver: {
 		path: Point[],
-		width: number
-	},
-	river : {
+		width: number,
+	};
+	river: {
 		path: Point[],
-		width: number
-	},
-	bridges : Edge[],
-	sprawl : Polygon[]
+		width: number,
+	};
+	bridges: Edge[];
+	sprawl: Polygon[];
 }
 
 export interface MapJson {
-	coasts : Point[][],
-	districts : DistrictJson[],
-	subRiver : {
+	coasts: Point[][];
+	districts: DistrictJson[];
+	subRiver: {
 		path: Point[],
-		width: number
-	},
-	river : {
+		width: number,
+	};
+	river: {
 		path: Point[],
-		width: number
-	},
-	bridges : Edge[],
-	sprawl : Polygon[]
+		width: number,
+	};
+	bridges: Edge[];
+	sprawl: Polygon[];
 }
 
-export function mapFromJson(mapJson : MapJson): Map {
+export function mapFromJson(mapJson: MapJson): Map {
 	const map = {
-		districts: []as District[],
+		bridges: mapJson.bridges,
 		coasts: mapJson.coasts,
+		districts: []as District[],
 		river: mapJson.river,
-		subRiver: mapJson.subRiver,
 		sprawl: mapJson.sprawl,
-		bridges: mapJson.bridges
+		subRiver: mapJson.subRiver,
 	};
 	map.districts = mapJson
 		.districts
-		.map(d => District.fromJson(d));
-	for (let district of map.districts) {
+		.map((d) => District.fromJson(d));
+	for (const district of map.districts) {
 		district.linkSites(map.districts);
 	}
 	return map;
