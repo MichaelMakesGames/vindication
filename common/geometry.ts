@@ -1,30 +1,44 @@
-export type Point = [number, number];
-export type Polygon = Point[];
-export type Edge = [Point, Point];
+export interface Point {
+	x: number;
+	y: number;
+}
+export interface Polygon {
+	points: Point[];
+}
+export interface Edge {
+	p1: Point;
+	p2: Point;
+}
 
 export function clonePoint(p: Point): Point {
-	return [p[0], p[1]];
+	return {
+		x: p.x,
+		y: p.y,
+	};
 }
 
 export function cloneEdge(e: Edge): Edge {
-	return [clonePoint(e[0]), clonePoint(e[1])];
+	return {
+		p1: clonePoint(e.p1),
+		p2: clonePoint(e.p2),
+	};
 }
 
 export function clonePolygon(p: Polygon): Polygon {
-	return p.map<Point>((point) => clonePoint(point));
+	return { points: p.points.map((point) => clonePoint(point)) };
 }
 
 export function getBBoxCenter(polygon: Polygon): Point {
-	const xValues = polygon.map((point) => point[0]);
-	const yValues = polygon.map((point) => point[1]);
+	const xValues = polygon.points.map((point) => point.x);
+	const yValues = polygon.points.map((point) => point.y);
 	const xMin = Math.min(...xValues);
 	const xMax = Math.max(...xValues);
 	const yMin = Math.min(...yValues);
 	const yMax = Math.max(...yValues);
-	return [
-		(xMin + xMax) / 2,
-		(yMin + yMax) / 2,
-	];
+	return {
+		x: (xMin + xMax) / 2,
+		y: (yMin + yMax) / 2,
+	};
 }
 
 /**
@@ -46,7 +60,13 @@ export function findRectInPolygon(polygon: Polygon): Polygon {
 
 		let points = getEvenlyDistributedPoints(edge, 10);
 		let intersections = points.map<Point>((p) => {
-			const testEdge: Edge = [p, [p[0] + 1, p[1] + slope]];
+			const testEdge: Edge = {
+				p1: p,
+				p2: {
+					x: p.x + 1,
+					y: p.y + slope,
+				},
+			};
 			for (const otherEdge of edges.filter((e) => e !== edge)) {
 				const intersection = calcLineIntersection(otherEdge, testEdge);
 				if (intersection && isIntersectionInEdge(intersection, otherEdge)) {
@@ -74,23 +94,23 @@ export function findRectInPolygon(polygon: Polygon): Polygon {
 
 				if (area > largestRectArea) {
 					largestRectArea = area;
-					const widthSlope = calcSlope([point, otherPoint]);
-					const rect: Polygon = [
+					const widthSlope = calcSlope({ p1: point, p2: otherPoint});
+					const rect: Polygon = { points: [
 						point,
 						otherPoint,
 						otherLength === minLength ?
 							otherIntersection :
 							calcLineIntersection(
-								[otherPoint, otherIntersection],
-								[intersection, [intersection[0] + 1, intersection[1] + widthSlope]],
+								{ p1: otherPoint, p2: otherIntersection },
+								{ p1: intersection, p2: {x: intersection.x + 1, y: intersection.y + widthSlope } },
 							),
 						length === minLength ?
 							intersection :
 							calcLineIntersection(
-								[point, intersection],
-								[otherIntersection, [otherIntersection[0] + 1, otherIntersection[1] + widthSlope]],
+								{ p1: point, p2: intersection },
+								{ p1: otherIntersection, p2: { x: otherIntersection.x + 1, y: otherIntersection.y + widthSlope } },
 							),
-					];
+					]};
 					largestRect = rect;
 				}
 			}
@@ -102,106 +122,128 @@ export function findRectInPolygon(polygon: Polygon): Polygon {
 
 export function getEvenlyDistributedPoints(edge: Edge, numPoints: number): Point[] {
 	const points: Point[] = [];
-	const dx = Math.abs(edge[0][0] - edge[1][0]);
-	const dy = Math.abs(edge[0][1] - edge[1][1]);
+	const dx = Math.abs(edge.p1.x - edge.p2.x);
+	const dy = Math.abs(edge.p1.y - edge.p2.y);
 	for (let i = 0; i < numPoints; i++) {
-		const x = Math.min(edge[0][0], edge[1][0]) + dx * i / (numPoints - 1);
+		const x = Math.min(edge.p1.x, edge.p2.x) + dx * i / (numPoints - 1);
 		points.push(getPointOnLine(edge, x));
 	}
 	return points;
 }
 
 export function getPointOnLine(edge: Edge, x: number): Point {
-	return [
+	return {
 		x,
-		calcSlope(edge) * (x - edge[0][0]) + edge[0][1],
-	];
+		y: calcSlope(edge) * (x - edge.p1.x) + edge.p1.y,
+	};
 }
 
 export function createCross(rect: Polygon): Polygon {
 	rect = clonePolygon(rect);
 
 	// make sure the first edge is a short edge
-	if (calcDistance(rect[0], rect[1]) > calcDistance(rect[1], rect[2])) {
-		rect.unshift(rect.pop());
+	if (calcDistance(rect.points[0], rect.points[1]) > calcDistance(rect.points[1], rect.points[2])) {
+		rect.points.unshift(rect.points.pop());
 	}
 
-	const shortDistance = calcDistance(rect[0], rect[1]) / 3;
-	const longDistance = calcDistance(rect[1], rect[2]) - shortDistance * 2;
-	const shortTheta = Math.atan(calcSlope([rect[0], rect[1]]));
-	const longTheta = Math.atan(calcSlope([rect[1], rect[2]]));
+	const shortDistance = calcDistance(rect.points[0], rect.points[1]) / 3;
+	const longDistance = calcDistance(rect.points[1], rect.points[2]) - shortDistance * 2;
+	const shortTheta = Math.atan(calcSlope({ p1: rect.points[0], p2: rect.points[1] }));
+	const longTheta = Math.atan(calcSlope({ p1: rect.points[1], p2: rect.points[2]}));
 
-	const shortTestPoint: Point = [rect[0][0] + Math.cos(shortTheta), rect[0][1] + Math.sin(shortTheta)];
-	const shortThetaMultiplier = calcDistance(shortTestPoint, rect[1]) > calcDistance(rect[0], rect[1]) ? -1 : 1;
-	const longTestPoint: Point = [rect[0][0] + Math.cos(longTheta), rect[0][1] + Math.sin(longTheta)];
-	const longThetaMultiplier = calcDistance(longTestPoint, rect[3]) > calcDistance(rect[0], rect[3]) ? -1 : 1;
+	const shortTestPoint: Point = {
+		x: rect.points[0].x + Math.cos(shortTheta),
+		y: rect.points[0].y + Math.sin(shortTheta),
+	};
+	const shortThetaMultiplier = calcDistance(
+		shortTestPoint,
+		rect.points[1],
+	) > calcDistance(
+		rect.points[0],
+		rect.points[1],
+	) ? -1 : 1;
 
-	const cross: Polygon = [];
+	const longTestPoint: Point = {
+		x: rect.points[0].x + Math.cos(longTheta),
+		y: rect.points[0].y + Math.sin(longTheta),
+	};
+	const longThetaMultiplier = calcDistance(
+		longTestPoint,
+		rect.points[3],
+	) > calcDistance(
+		rect.points[0],
+		rect.points[3],
+	) ? -1 : 1;
 
-	cross.push([
-		rect[0][0] + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		rect[0][1] + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
-	cross.push([
-		cross[0][0] + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		cross[0][1] + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
-	cross.push([
-		cross[1][0] + Math.cos(longTheta) * shortDistance * longThetaMultiplier,
-		cross[1][1] + Math.sin(longTheta) * shortDistance * longThetaMultiplier,
-	]);
-	cross.push([
-		cross[2][0] + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		cross[2][1] + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
-	cross.push([
-		cross[3][0] + Math.cos(longTheta) * shortDistance * longThetaMultiplier,
-		cross[3][1] + Math.sin(longTheta) * shortDistance * longThetaMultiplier,
-	]);
-	cross.push([
-		cross[4][0] - Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		cross[4][1] - Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
-	cross.push([
-		cross[5][0] + Math.cos(longTheta) * longDistance * longThetaMultiplier,
-		cross[5][1] + Math.sin(longTheta) * longDistance * longThetaMultiplier,
-	]);
-	cross.push([
-		cross[6][0] - Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		cross[6][1] - Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
-	cross.push([
-		cross[7][0] - Math.cos(longTheta) * longDistance * longThetaMultiplier,
-		cross[7][1] - Math.sin(longTheta) * longDistance * longThetaMultiplier,
-	]);
-	cross.push([
-		cross[8][0] - Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		cross[8][1] - Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
-	cross.push([
-		cross[9][0] - Math.cos(longTheta) * shortDistance * longThetaMultiplier,
-		cross[9][1] - Math.sin(longTheta) * shortDistance * longThetaMultiplier,
-	]);
-	cross.push([
-		cross[10][0] + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
-		cross[10][1] + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
-	]);
+	const points: Point[] = [];
 
-	return cross;
+	points.push({
+		x: rect.points[0].x + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: rect.points[0].y + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+	points.push({
+		x: points[0].x + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: points[0].y + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+	points.push({
+		x: points[1].x + Math.cos(longTheta) * shortDistance * longThetaMultiplier,
+		y: points[1].y + Math.sin(longTheta) * shortDistance * longThetaMultiplier,
+	});
+	points.push({
+		x: points[2].x + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: points[2].y + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+	points.push({
+		x: points[3].x + Math.cos(longTheta) * shortDistance * longThetaMultiplier,
+		y: points[3].y + Math.sin(longTheta) * shortDistance * longThetaMultiplier,
+	});
+	points.push({
+		x: points[4].x - Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: points[4].y - Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+	points.push({
+		x: points[5].x + Math.cos(longTheta) * longDistance * longThetaMultiplier,
+		y: points[5].y + Math.sin(longTheta) * longDistance * longThetaMultiplier,
+	});
+	points.push({
+		x: points[6].x - Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: points[6].y - Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+	points.push({
+		x: points[7].x - Math.cos(longTheta) * longDistance * longThetaMultiplier,
+		y: points[7].y - Math.sin(longTheta) * longDistance * longThetaMultiplier,
+	});
+	points.push({
+		x: points[8].x - Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: points[8].y - Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+	points.push({
+		x: points[9].x - Math.cos(longTheta) * shortDistance * longThetaMultiplier,
+		y: points[9].y - Math.sin(longTheta) * shortDistance * longThetaMultiplier,
+	});
+	points.push({
+		x: points[10].x + Math.cos(shortTheta) * shortDistance * shortThetaMultiplier,
+		y: points[10].y + Math.sin(shortTheta) * shortDistance * shortThetaMultiplier,
+	});
+
+	return { points };
 }
 
 export function rotatePoint(point: Point, origin: Point, theta: number): Point {
-	return [
-		Math.cos(theta) * (point[0] - origin[0]) - Math.sin(theta) * (point[1] - origin[1]) + origin[0],
-		Math.sin(theta) * (point[0] - origin[0]) + Math.cos(theta) * (point[1] - origin[1]) + origin[1],
-	];
+	return {
+		x: Math.cos(theta) * (point.x - origin.x) - Math.sin(theta) * (point.y - origin.y) + origin.x,
+		y: Math.sin(theta) * (point.x - origin.x) + Math.cos(theta) * (point.y - origin.y) + origin.x,
+	};
 }
 
 export function getRandomPointOnEdge(edge: Edge, rng: any): Point {
 	const n: number = rng.random();
-	const dx = edge[0][0] - edge[1][0];
-	const dy = edge[0][1] - edge[1][1];
-	return [edge[0][0] - n * dx, edge[0][1] - n * dy];
+	const dx = edge.p1.x - edge.p2.x;
+	const dy = edge.p1.y - edge.p2.y;
+	return {
+		x: edge.p1.x - n * dx,
+		y: edge.p1.y - n * dy,
+	};
 }
 
 export function createRectFromEdge(edge: Edge, width: number, towards: Point): Polygon {
@@ -209,15 +251,17 @@ export function createRectFromEdge(edge: Edge, width: number, towards: Point): P
 	const theta = Math.atan(slope);
 	const dx = Math.cos(theta) * width;
 	const dy = Math.sin(theta) * width;
-	const p3c1: Point = [edge[1][0] + dx, edge[1][1] + dy];
-	const p3c2: Point = [edge[1][0] - dx, edge[1][1] - dy];
-	const p4c1: Point = [edge[0][0] + dx, edge[0][1] + dy];
-	const p4c2: Point = [edge[0][0] - dx, edge[0][1] - dy];
+	const p3c1: Point = { x: edge.p2.x + dx, y: edge.p2.y + dy };
+	const p3c2: Point = { x: edge.p2.x - dx, y: edge.p2.y - dy };
+	const p4c1: Point = { x: edge.p1.x + dx, y: edge.p1.y + dy };
+	const p4c2: Point = { x: edge.p1.x - dx, y: edge.p1.y - dy };
 	const c1 = calcEuclideanDistance(p3c1, towards) < calcEuclideanDistance(p3c2, towards);
+	const p1 = clonePoint(edge.p1);
+	const p2 = clonePoint(edge.p2);
 	const p3: Point = c1 ? p3c1 : p3c2;
 	const p4: Point = c1 ? p4c1 : p4c2;
-	const rect = [[...edge[0]] as Point, [...edge[1]] as Point, p3, p4];
-	return rect;
+	const points: Point[] = [ p1, p2, p3, p4 ];
+	return { points };
 }
 
 /**
@@ -228,14 +272,14 @@ export function createRectFromEdge(edge: Edge, width: number, towards: Point): P
  * @param edge2
  */
 export function calcLineIntersection(edge1: Edge, edge2: Edge): Point {
-	const x1 = edge1[0][0];
-	const y1 = edge1[0][1];
-	const x2 = edge1[1][0];
-	const y2 = edge1[1][1];
-	const x3 = edge2[0][0];
-	const y3 = edge2[0][1];
-	const x4 = edge2[1][0];
-	const y4 = edge2[1][1];
+	const x1 = edge1.p1.x;
+	const y1 = edge1.p1.y;
+	const x2 = edge1.p2.x;
+	const y2 = edge1.p2.y;
+	const x3 = edge2.p1.x;
+	const y3 = edge2.p1.y;
+	const x4 = edge2.p2.x;
+	const y4 = edge2.p2.y;
 
 	let ua = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
 	let ub = ua;
@@ -245,10 +289,10 @@ export function calcLineIntersection(edge1: Edge, edge2: Edge): Point {
 	}
 	ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
 	ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
-	return [
-		x1 + ua * (x2 - x1),
-		y1 + ua * (y2 - y1),
-	];
+	return {
+		x: x1 + ua * (x2 - x1),
+		y: y1 + ua * (y2 - y1),
+	};
 }
 
 export function isIntersectionInEdge(intersection: Point, edge: Edge): boolean {
@@ -256,23 +300,31 @@ export function isIntersectionInEdge(intersection: Point, edge: Edge): boolean {
 		return false;
 	}
 
-	return (
-		(
-			intersection[0] <= Math.max(edge[0][0], edge[1][0]) &&
-			intersection[0] >= Math.min(edge[0][0], edge[1][0])
-		) ||
-		(
-			Math.abs(intersection[0] - edge[0][0]) < 0.001 ||
-			Math.abs(intersection[0] - edge[1][0]) < 0.001
-		)
-	);
+	const xMin = Math.min(edge.p1.x, edge.p2.x) - 0.001;
+	const xMax = Math.max(edge.p1.x, edge.p2.x) + 0.001;
+
+	return intersection.x > xMin && intersection.x < xMax;
+
+	// return (
+	// 	(
+	// 		intersection.x <= Math.max(edge.p1.x, edge.p2.x) &&
+	// 		intersection.x >= Math.min(edge.p1.x, edge.p2.x)
+	// 	) ||
+	// 	(
+	// 		Math.abs(intersection.x - edge.p1.x) < 0.001 ||
+	// 		Math.abs(intersection.x - edge.p2.x) < 0.001
+	// 	)
+	// );
 }
 
 export function getPolygonEdges(polygon: Polygon): Edge[] {
 	const mapFunc = (point: Point, index: number) => {
-		return [point, polygon[(index + 1) % polygon.length]] as Edge;
+		return {
+			p1: point,
+			p2: polygon.points[(index + 1) % polygon.points.length],
+		};
 	};
-	return polygon.map(mapFunc);
+	return polygon.points.map<Edge>(mapFunc);
 }
 
 export function doesLineIntersectPolygon(testEdge: Edge, polygon: Polygon): boolean {
@@ -305,65 +357,71 @@ export interface InsetResult {
 	newEdge: Edge;
 }
 export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: number) {
-	startPoint = polygon.find((p) => p[0] === startPoint[0] && p[1] === startPoint[1]);
+	startPoint = polygon.points.find((p) => arePointsEquivalent(p, startPoint));
 	if (!startPoint) {
 		console.warn('Inset failed, could not find startPoint in polygon');
 		return;
 	}
 
 	const result: InsetResult = {
-		negative: [],
-		newEdge: [[0, 0], [0, 0]],
+		negative: { points: [] },
+		newEdge: { p1: { x: 0, y: 0 }, p2: {x: 0, y: 0} },
 		spliced: [],
 	};
 
-	const previousPoint = polygon[(polygon.indexOf(startPoint) - 1 + polygon.length) % polygon.length];
-	const nextPoint = polygon[(polygon.indexOf(startPoint) + 1) % polygon.length];
-	const nextNextPoint = polygon[(polygon.indexOf(startPoint) + 2) % polygon.length];
-	result.negative.push([...startPoint] as Point, [...nextPoint] as Point);
-
-	const edges = polygon.map((p, i) => [p, polygon[(i + 1) % polygon.length]]);
-	const edge = edges[polygon.indexOf(startPoint)];
-
-	const slope = (
-		(edge[0][1] - edge[1][1]) /
-		(edge[0][0] - edge[1][0])
+	const startPointIndex = polygon.points.indexOf(startPoint);
+	const previousPointIndex = (startPointIndex - 1 + polygon.points.length) % polygon.points.length;
+	const nextPointIndex = (startPointIndex + 1) % polygon.points.length;
+	const nextNextPointIndex = (startPointIndex + 2) % polygon.points.length;
+	const previousPoint = polygon.points[previousPointIndex];
+	const nextPoint = polygon.points[nextPointIndex];
+	const nextNextPoint = polygon.points[nextNextPointIndex];
+	result.negative.points.push(
+		clonePoint(startPoint),
+		clonePoint(nextPoint),
 	);
+
+	const edges: Edge[] = polygon.points.map((p, i) => {
+		return { p1: p, p2: polygon.points[(i + 1) % polygon.points.length] };
+	});
+	const edge = edges[polygon.points.indexOf(startPoint)];
+
+	const slope = calcSlope(edge);
 	const perpendicularSlope = -1 / slope;
 	const angle = Math.atan(perpendicularSlope);
 	const dx = inset * Math.cos(angle);
 	const dy = inset * Math.sin(angle);
 
-	let testEdge: Edge = [
-		[
-			edge[0][0] + dx,
-			edge[0][1] + dy,
-		],
-		[
-			edge[1][0] + dx,
-			edge[1][1] + dy,
-		],
-	];
+	let testEdge: Edge = {
+		p1: {
+			x: edge.p1.x + dx,
+			y: edge.p1.y + dy,
+		},
+		p2: {
+			x: edge.p2.x + dx,
+			y: edge.p2.y + dy,
+		},
+	};
 	if (!doesLineIntersectPolygon(testEdge, polygon)) {
-		testEdge = [
-			[
-				edge[0][0] - dx,
-				edge[0][1] - dy,
-			],
-			[
-				edge[1][0] - dx,
-				edge[1][1] - dy,
-			],
-		];
+		testEdge = {
+			p1: {
+				x: edge.p1.x - dx,
+				y: edge.p1.y - dy,
+			},
+			p2: {
+				x: edge.p2.x - dx,
+				y: edge.p2.y - dy,
+			},
+		};
 	}
 	if (!doesLineIntersectPolygon(testEdge, polygon)) {
 		console.warn('Inset failed, neither test edge intersected polygon');
 		return;
 	}
 
-	let currentEdge;
+	let currentEdge: Edge;
 
-	currentEdge = edges[(polygon.indexOf(startPoint) + 1) % polygon.length];
+	currentEdge = edges[(polygon.points.indexOf(startPoint) + 1) % polygon.points.length];
 	while (true) {
 		if (edges.length < 3) {
 			console.warn('Inset failed, spliced too many edges search for next intersection');
@@ -377,13 +435,13 @@ export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: num
 		const intersected = intersection && isIntersectionInEdge(intersection, currentEdge);
 		const nextEdge = edges[(edges.indexOf(currentEdge) + 1) % edges.length];
 		if (intersected) {
-			currentEdge[0] = intersection;
-			edge[1] = intersection;
-			result.negative.push([...intersection] as Point);
-			result.newEdge[0] = [...intersection] as Point;
+			currentEdge.p1 = intersection;
+			edge.p2 = intersection;
+			result.negative.points.push(clonePoint(intersection));
+			result.newEdge.p1 = clonePoint(intersection);
 			break;
 		} else {
-			result.negative.push([...currentEdge[0]] as Point);
+			result.negative.points.push(clonePoint(currentEdge.p1));
 			result.spliced.push(edges.indexOf(currentEdge));
 			edges.splice(edges.indexOf(currentEdge), 1);
 		}
@@ -405,22 +463,22 @@ export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: num
 		const nextEdgeIndex = (edges.indexOf(currentEdge) + edges.length - 1) % edges.length;
 		const nextEdge = edges[nextEdgeIndex];
 		if (intersected) {
-			currentEdge[1] = intersection;
-			edge[0] = intersection;
-			result.negative.unshift([...intersection] as Point);
-			result.newEdge[1] = [...intersection] as Point;
+			currentEdge.p2 = intersection;
+			edge.p1 = intersection;
+			result.negative.points.unshift(clonePoint(intersection));
+			result.newEdge.p2 = clonePoint(intersection);
 			break;
 		} else {
-			result.negative.unshift([...currentEdge[0]] as Point);
+			result.negative.points.unshift(clonePoint(currentEdge.p1));
 			result.spliced.push(edges.indexOf(currentEdge));
 			edges.splice(edges.indexOf(currentEdge), 1);
 		}
 		currentEdge = nextEdge;
 	}
 
-	polygon.length = edges.length;
+	polygon.points.length = edges.length;
 	for (let i = 0; i < edges.length; i++) {
-		polygon[i] = edges[i][0];
+		polygon.points[i] = edges[i].p1;
 	}
 
 	return result;
@@ -431,6 +489,7 @@ export function slicePolygon(polygon: Polygon, testEdge: Edge, inset: number = 0
 	const split = false;
 	const intersectionResults = edges.map((edge) => {
 		const intersection = calcLineIntersection(edge, testEdge); // tslint:disable-line:no-shadowed-variable
+		const inEdge = isIntersectionInEdge(intersection, edge);
 		return intersection && isIntersectionInEdge(intersection, edge) && {edge, intersection};
 	}).filter(Boolean);
 	if (intersectionResults.length !== 2) {
@@ -444,53 +503,53 @@ export function slicePolygon(polygon: Polygon, testEdge: Edge, inset: number = 0
 	const intersected = intersectionResults[1].edge;
 	const intersection = intersectionResults[1].intersection;
 
-	const newEdge = [
-		splitPoint,
-		intersection,
-	];
+	const newEdge: Edge = {
+		p1: splitPoint,
+		p2: intersection,
+	};
 
-	let newPolygon1: any = [];
-	newPolygon1.push([intersected[0], intersection]);
-	newPolygon1.push([intersection, splitPoint]);
-	newPolygon1.push([splitPoint, longest[0]]);
+	const newPolygon1Edges: Edge[] = [];
+	newPolygon1Edges.push({ p1: intersected.p1, p2: intersection });
+	newPolygon1Edges.push({ p1: intersection, p2: splitPoint });
+	newPolygon1Edges.push({ p1: splitPoint, p2: longest[0] });
 	let current = edges[(edges.indexOf(longest) + 1) % edges.length];
 	while (current !== intersected) {
-		newPolygon1.push(current);
+		newPolygon1Edges.push(current);
 		current = edges[(edges.indexOf(current) + 1) % edges.length];
 	}
 
-	let newPolygon2: any = [];
-	newPolygon2.push([longest[0], splitPoint]);
-	newPolygon2.push([splitPoint, intersection]);
-	newPolygon2.push([intersection, intersected[1]]);
+	const newPolygon2Edges: Edge[] = [];
+	newPolygon2Edges.push({ p1: longest.p1, p2: splitPoint });
+	newPolygon2Edges.push({ p1: splitPoint, p2: intersection });
+	newPolygon2Edges.push({ p1: intersection, p2: intersected[1] });
 	current = edges[(edges.indexOf(intersected) + 1) % edges.length];
 	while (current !== longest) {
-		newPolygon2.push(current);
+		newPolygon2Edges.push(current);
 		current = edges[(edges.indexOf(current) + 1) % edges.length];
 	}
 
-	newPolygon1 = newPolygon1.map((edge) => edge[0]);
-	newPolygon1.cssClass = 'building';
-	newPolygon2 = newPolygon2.map((edge) => edge[0]);
-	newPolygon2.cssClass = 'building';
+	const newPolygon1: Polygon = { points: newPolygon1Edges.map((edge) => edge.p1) };
+	// newPolygon1Edges.cssClass = 'building';
+	const newPolygon2: Polygon = { points: newPolygon2Edges.map((edge) => edge.p1) };
+	// newPolygon2Edges.cssClass = 'building';
 	insetPolygonEdge(newPolygon1, intersection, inset / 2);
 	insetPolygonEdge(newPolygon2, splitPoint, inset / 2);
 	return [newPolygon1, newPolygon2];
 }
 
 export function calcCloserPoint(origin: Point, target: Point, distance): Point {
-	const dx = origin[0] - target[0];
-	const dy = origin[1] - target[1];
+	const dx = origin.x - target.x;
+	const dy = origin.y - target.y;
 	const slope = dy / dx;
 	const length = calcEuclideanDistance(origin, target);
 	const theta = Math.atan(slope);
 	const dxMove = Math.abs(Math.cos(theta) * distance);
 	const dyMove = Math.abs(Math.sin(theta) * distance);
 
-	const newX = dx > 0 ? origin[0] - dxMove : origin[0] + dxMove;
-	const newY = dy > 0 ? origin[1] - dyMove : origin[1] + dyMove;
+	const newX = dx > 0 ? origin.x - dxMove : origin.x + dxMove;
+	const newY = dy > 0 ? origin.y - dyMove : origin.y + dyMove;
 
-	return [newX, newY];
+	return { x: newX, y: newY };
 }
 
 export function clipCorner(polygon: Polygon, pointOrIndex: Point | number, clip: number): void {
@@ -498,28 +557,25 @@ export function clipCorner(polygon: Polygon, pointOrIndex: Point | number, clip:
 	let point: Point;
 	if (typeof pointOrIndex === 'number') {
 		index = pointOrIndex;
-		point = polygon[index];
+		point = polygon.points[index];
 	} else {
 		point = pointOrIndex;
-		index = polygon.findIndex((p) => arePointsEquivalent(p, point));
+		index = polygon.points.findIndex((p) => arePointsEquivalent(p, point));
 	}
 
-	const previousPoint = polygon[(polygon.length + index - 1) % polygon.length];
-	const nextPoint = polygon[(index + 1) % polygon.length];
-	polygon.splice(index, 1,
+	const previousPoint = polygon.points[(polygon.points.length + index - 1) % polygon.points.length];
+	const nextPoint = polygon.points[(index + 1) % polygon.points.length];
+	polygon.points.splice(index, 1,
 		calcCloserPoint(point, previousPoint, clip),
 		calcCloserPoint(point, nextPoint, clip));
 }
 
 export function clipCorners(polygon: Polygon, clip: number): void {
-	const edges = getPolygonEdges(polygon);
+	const edges = getPolygonEdges(polygon).map(cloneEdge);
+
 	for (const edge of edges) {
-		edge[0] = [...edge[0]] as Point;
-		edge[1] = [...edge[1]] as Point;
-	}
-	for (const edge of edges) {
-		const dx = edge[0][0] - edge[1][0];
-		const dy = edge[0][1] - edge[1][1];
+		const dx = edge.p1.x - edge.p2.x;
+		const dy = edge.p1.y - edge.p2.y;
 		const slope = dy / dx;
 		const length = Math.pow(Math.pow(dx, 2) + Math.pow(dy, 2), 0.5);
 		const theta = Math.atan(slope);
@@ -527,46 +583,43 @@ export function clipCorners(polygon: Polygon, clip: number): void {
 			const dxClip = Math.abs(Math.cos(theta) * clip);
 			const dyClip = Math.abs(Math.sin(theta) * clip);
 			if (dx > 0) {
-				edge[0][0] -= dxClip;
-				edge[1][0] += dxClip;
+				edge.p1.x -= dxClip;
+				edge.p2.x += dxClip;
 			} else {
-				edge[0][0] += dxClip;
-				edge[1][0] -= dxClip;
+				edge.p1.x += dxClip;
+				edge.p2.x -= dxClip;
 			}
 			if (dy > 0) {
-				edge[0][1] -= dyClip;
-				edge[1][1] += dyClip;
+				edge.p1.y -= dyClip;
+				edge.p2.y += dyClip;
 			} else {
-				edge[0][1] += dyClip;
-				edge[1][1] -= dyClip;
+				edge.p1.y += dyClip;
+				edge.p2.y -= dyClip;
 			}
 		} else  {
-			const midPoint: Point = [
-				(edge[0][0] + edge[1][0]) / 2,
-				(edge[0][1] + edge[1][1]) / 2,
-			];
-			edge[0] = midPoint;
-			edge[1] = midPoint;
+			const midPoint: Point = calcMidPoint(edge);
+			edge.p1 = midPoint;
+			edge.p2 = midPoint;
 		}
 	}
-	polygon.length = 0;
+	polygon.points.length = 0;
 	for (const edge of edges) {
-		if (edge[0] === edge[1]) {
-			polygon.push(edge[0]);
+		if (edge.p1 === edge.p2) {
+			polygon.points.push(edge.p1);
 		} else {
-			polygon.push(...edge);
+			polygon.points.push(edge.p1, edge.p2);
 		}
 	}
 }
 
 export function arePointsEquivalent(p1: Point, p2: Point) {
-	return p1[0] === p2[0] && p1[1] === p2[1];
+	return p1.x === p2.x && p1.y === p2.y;
 }
 
 export function areEdgesEquivalent(e1: Edge, e2: Edge) {
 	return (
-		(arePointsEquivalent(e1[0], e2[0]) && arePointsEquivalent(e1[1], e2[1])) ||
-		(arePointsEquivalent(e1[0], e2[1]) && arePointsEquivalent(e1[1], e2[0]))
+		(arePointsEquivalent(e1.p1, e2.p1) && arePointsEquivalent(e1.p2, e2.p2)) ||
+		(arePointsEquivalent(e1.p1, e2.p2) && arePointsEquivalent(e1.p2, e2.p1))
 	);
 }
 
@@ -586,28 +639,28 @@ export function findCommonEdge(p1: Polygon, p2: Polygon): Edge | null {
 }
 
 export function calcMidPoint(edge: Edge): Point {
-	return [
-		(edge[0][0] + edge[1][0]) / 2,
-		(edge[0][1] + edge[1][1]) / 2,
-	];
+	return {
+		x: (edge.p1.x + edge.p2.x) / 2,
+		y: (edge.p1.y + edge.p2.y) / 2,
+	};
 }
 
 export function calcSlope(edge: Edge): number {
-	return (edge[0][1] - edge[1][1]) / (edge[0][0] - edge[1][0]);
+	return (edge.p1.y - edge.p2.y) / (edge.p1.x - edge.p2.x);
 }
 
 export function calcPerpendicularSlope(edgeOrSlope: Edge | number): number {
 	let slope: number;
-	if (Array.isArray(edgeOrSlope)) {
-		slope = calcSlope(edgeOrSlope);
-	} else {
+	if (typeof(edgeOrSlope) === 'number') {
 		slope = edgeOrSlope as number;
+	} else {
+		slope = calcSlope(edgeOrSlope);
 	}
 	return -1 / slope;
 }
 
 export function calcEuclideanDistance(p1: Point, p2: Point) {
-	return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5;
+	return ((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2) ** 0.5;
 }
 
 export const calcDistance = calcEuclideanDistance;
@@ -620,7 +673,9 @@ export function getPointClosestTo(points: Point[], target: Point): Point {
 
 export function shatterPolygon(polygon: Polygon, point: Point): Polygon[] {
 	const edges = getPolygonEdges(polygon);
-	return edges.map((edge) => edge.concat([point]));
+	return edges.map((edge) => {
+		return { points: [edge.p1, edge.p2, point] };
+	});
 }
 
 export function joinEdges(edges: Edge[]): Point[][] {
@@ -629,23 +684,23 @@ export function joinEdges(edges: Edge[]): Point[][] {
 		let joinedToEnd = null;
 		let joinedToFront = null;
 		for (const points of results) {
-			if (arePointsEquivalent(edge[0], points[0])) {
-				points.unshift([...edge[1]] as Point);
+			if (arePointsEquivalent(edge.p1, points[0])) {
+				points.unshift(clonePoint(edge.p2));
 				joinedToFront = points;
 				break;
 			}
-			if (arePointsEquivalent(edge[1], points[0])) {
-				points.unshift([...edge[0]] as Point);
+			if (arePointsEquivalent(edge.p2, points[0])) {
+				points.unshift(clonePoint(edge.p1));
 				joinedToFront = points;
 				break;
 			}
-			if (arePointsEquivalent(edge[0], points[points.length - 1])) {
-				points.push([...edge[1]] as Point);
+			if (arePointsEquivalent(edge.p1, points[points.length - 1])) {
+				points.push(clonePoint(edge.p2));
 				joinedToEnd = points;
 				break;
 			}
-			if (arePointsEquivalent(edge[1], points[points.length - 1])) {
-				points.push([...edge[0]] as Point);
+			if (arePointsEquivalent(edge.p2, points[points.length - 1])) {
+				points.push(clonePoint(edge.p1));
 				joinedToEnd = points;
 				break;
 			}
@@ -683,9 +738,9 @@ export function joinEdges(edges: Edge[]): Point[][] {
 				}
 			}
 		} else {
-			results.push([...edge]);
+			results.push([edge.p1, edge.p2]);
 		}
 	}
 
-	return  results;
+	return results;
 }

@@ -5,6 +5,10 @@ import * as geometry from '../common/geometry';
 import { Map, MapJson } from '../common/map';
 import { Options } from '../common/options';
 
+export function polygonToSVGPoints(polygon: geometry.Polygon): string {
+	return polygon.points.map((p) => `${p.x},${p.y}`).join(' ');
+}
+
 export function renderPreview(map: MapJson, options: Options): void {
 	const svg = d3.select('#map-preview');
 	svg.selectAll('*').remove();
@@ -18,19 +22,19 @@ export function renderPreview(map: MapJson, options: Options): void {
 		water: 'preview-water-district',
 	};
 	svg.selectAll('polygon').data(map.districts).enter().append('polygon')
-		.attr('points', (d) => d.originalPolygon.join(' '))
+		.attr('points', (d) => polygonToSVGPoints(d.originalPolygon))
 		.attr('class', (d) => districtTypeToClassName[d.type]);
 	svg.append('polyline')
-		.attr('points', map.river.path.join(' '))
+		.attr('points', polygonToSVGPoints({ points: map.river.path }))
 		.attr('stroke-width', map.river.width + 4)
 		.attr('class', 'preview-river-outline');
 	svg.append('polyline')
-		.attr('points', map.river.path.join(' '))
+		.attr('points', polygonToSVGPoints({ points: map.river.path }))
 		.attr('stroke-width', map.river.width)
 		.attr('class', 'preview-river');
 	map.bridges.forEach((bridge) => {
 		svg.append('polyline')
-			.attr('points', bridge.join(' '))
+			.attr('points', `${bridge.p1.x},${bridge.p1.y} ${bridge.p2.x},${bridge.p2.y}`)
 			.attr('class', 'preview-bridge');
 	});
 }
@@ -54,7 +58,7 @@ export function render(map: Map, options: Options): void {
 		d3Land.append('polygon')
 			.attr('fill', 'white')
 			.attr('stroke-width', 0)
-			.attr('points', district.originalPolygon.join(' '));
+			.attr('points', polygonToSVGPoints(district.originalPolygon));
 	}
 
 	if (map.subRiver.path.length) {
@@ -66,17 +70,17 @@ export function render(map: Map, options: Options): void {
 		svg.append('line')
 			.attr('stroke-width', '12')
 			.attr('stroke', 'black')
-			.attr('x1', edge[0][0])
-			.attr('y1', edge[0][1])
-			.attr('x2', edge[1][0])
-			.attr('y2', edge[1][1]);
+			.attr('x1', edge.p1.x)
+			.attr('y1', edge.p1.y)
+			.attr('x2', edge.p2.x)
+			.attr('y2', edge.p2.y);
 		svg.append('line')
 			.attr('stroke-width', '8')
 			.attr('stroke', 'white')
-			.attr('x1', edge[0][0])
-			.attr('y1', edge[0][1])
-			.attr('x2', edge[1][0])
-			.attr('y2', edge[1][1]);
+			.attr('x1', edge.p1.x)
+			.attr('y1', edge.p1.y)
+			.attr('x2', edge.p2.x)
+			.attr('y2', edge.p2.y);
 	}
 
 	const districtTypeToRenderTarget = {
@@ -93,15 +97,15 @@ export function render(map: Map, options: Options): void {
 	for (const rect of map.sprawl) {
 		svg.select('#urban').append('polygon')
 			.attr('class', 'building')
-			.attr('points', rect.join(' '));
+			.attr('points', polygonToSVGPoints(rect));
 	}
 }
 
 function renderDistrict(district: District, target: Element): void {
 	const d3Target = d3.select(target);
-	const fieldLine = d3.line()
-		.x((d) => d[0])
-		.y((d) => d[1])
+	const fieldLine = d3.line<geometry.Point>()
+		.x((d) => d.x)
+		.y((d) => d.y)
 		.curve(d3.curveCatmullRomClosed.alpha(0.2));
 
 	if (district.isCore) {
@@ -109,7 +113,7 @@ function renderDistrict(district: District, target: Element): void {
 		const cross = geometry.createCross(rect);
 		d3Target.append('polygon')
 			.attr('class', 'building')
-			.attr('points', cross.join(' '));
+			.attr('points', polygonToSVGPoints(cross));
 		return;
 	}
 
@@ -122,14 +126,14 @@ function renderDistrict(district: District, target: Element): void {
 			for (const polygon of queue) {
 				let inset1 = 2;
 				let inset2 = 2;
-				if (roads.some((p) => geometry.arePointsEquivalent(p, polygon[1]))) {
+				if (roads.some((p) => geometry.arePointsEquivalent(p, polygon.points[1]))) {
 					inset1 = 5;
 				}
-				if (roads.some((p) => geometry.arePointsEquivalent(p, polygon[0]))) {
+				if (roads.some((p) => geometry.arePointsEquivalent(p, polygon.points[0]))) {
 					inset2 = 5;
 				}
-				geometry.insetPolygonEdge(polygon, polygon[1], inset1);
-				geometry.insetPolygonEdge(polygon, polygon[2], inset2);
+				geometry.insetPolygonEdge(polygon, polygon.points[1], inset1);
+				geometry.insetPolygonEdge(polygon, polygon.points[2], inset2);
 				geometry.clipCorner(polygon, 2, clip);
 			}
 		}
@@ -144,17 +148,17 @@ function renderDistrict(district: District, target: Element): void {
 				d3Target.append('polygon')
 					.datum(district)
 					.attr('class', 'urban-block')
-					.attr('points', polygon.join(' '));
+					.attr('points', polygonToSVGPoints(polygon));
 
-				const copy: geometry.Polygon = polygon.map((point) => [...point] as geometry.Point);
+				const copy: geometry.Polygon = geometry.clonePolygon(polygon);
 				let success = true;
-				for (const point of copy) {
+				for (const point of copy.points) {
 					success = success && !!geometry.insetPolygonEdge(copy, point, 10);
 				}
 				if (success) {
-					d3Target.append('polygon')
-						.attr('class', 'courtyard')
-						.attr('points', copy.join(' '));
+					// d3Target.append('polygon')
+					// 	.attr('class', 'courtyard')
+					// 	.attr('points', polygonToSVGPoints(copy));
 				}
 
 				break;
@@ -163,7 +167,7 @@ function renderDistrict(district: District, target: Element): void {
 			case 'rural': {
 				geometry.clipCorners(polygon, 6);
 				const selection = d3Target.append('path')
-					.datum(polygon)
+					.datum(polygon.points)
 					.attr('class', 'field' + Math.floor(Math.random() * 3 + 1))
 					.attr('d', fieldLine);
 				break;
@@ -174,7 +178,7 @@ function renderDistrict(district: District, target: Element): void {
 					.attr('class', 'water')
 					.style('animation-duration', Math.floor(Math.random() * 8 + 3) + 's')
 					.style('animation-delay', Math.floor(Math.random() * 1000) + 'ms')
-					.attr('points', polygon.join(' '));
+					.attr('points', polygonToSVGPoints(polygon));
 				break;
 			}
 
@@ -192,15 +196,15 @@ function renderDistrict(district: District, target: Element): void {
 function renderCoast(coast: geometry.Point[]): void {
 	const d3Coast = d3.select('#coast');
 
-	const line = d3.line()
-		.x((d) => d[0])
-		.y((d) => d[1])
+	const line = d3.line<geometry.Point>()
+		.x((d) => d.x)
+		.y((d) => d.y)
 		.curve(d3.curveCatmullRom);
 	if (geometry.arePointsEquivalent(coast[0], coast[coast.length - 1])) {
 		line.curve(d3.curveCatmullRomClosed);
 	}
 
-	geometry.clipCorners(coast, 5);
+	geometry.clipCorners({ points: coast }, 5);
 	coast.pop();
 	const beachWidth = 5;
 
@@ -282,11 +286,11 @@ function renderCoast(coast: geometry.Point[]): void {
 }
 
 function renderRiver(path: geometry.Point[], width: number = 40): void {
-	const riverLine = d3.line()
-		.x((d) => d[0])
-		.y((d) => d[1])
+	const riverLine = d3.line<geometry.Point>()
+		.x((d) => d.x)
+		.y((d) => d.y)
 		.curve(d3.curveCatmullRom);
-	geometry.clipCorners(path, 5);
+	geometry.clipCorners({ points: path }, 5);
 	path.pop();
 	const d3River = d3.select('#river');
 

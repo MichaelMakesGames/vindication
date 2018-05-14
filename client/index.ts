@@ -9,7 +9,7 @@ import { Map, mapFromJson, MapJson } from '../common/map';
 import { Options } from '../common/options';
 
 import { generate } from './mapgen';
-import { render, renderPreview } from './render';
+import { polygonToSVGPoints, render, renderPreview } from './render';
 
 const socket = io();
 
@@ -188,13 +188,13 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 		.append('circle')
 		.attr('fill', 'none')
 		.attr('r', 0)
-		.attr('cx', (d) => d[0])
-		.attr('cy', (d) => d[1]);
+		.attr('cx', (d) => d.x)
+		.attr('cy', (d) => d.y);
 	clientState.overlay = d3.select<SVGGElement, {}>('#overlay')
 		.selectAll<SVGPolygonElement, District>('polygon')
 		.data<District>(clientState.map.districts).enter()
 		.append<SVGPolygonElement>('polygon')
-		.attr('points', (d) => d.polygon.join(' '))
+		.attr('points', (d) => polygonToSVGPoints(d.polygon))
 		.classed('district', true)
 		.on('mouseenter', (d) => {
 			clientState.hoveredDistrict = d;
@@ -237,8 +237,8 @@ function setTurn(district: District, action: string) {
 	d3.select('#overlay').append('circle')
 		.attr('id', 'turn-marker')
 		.attr('r', 20)
-		.attr('cx', getBBoxCenter(district.polygon)[0])
-		.attr('cy', getBBoxCenter(district.polygon)[1])
+		.attr('cx', getBBoxCenter(district.polygon).x)
+		.attr('cy', getBBoxCenter(district.polygon).y)
 		.style('fill', clientState.role === REBEL ? 'red' : 'blue' )
 		.style('pointer-events', 'none');
 }
@@ -270,8 +270,8 @@ function socketOnGameState(newState: GameState) {
 		d3.select('#overlay').append('circle')
 			.attr('id', 'rebel-position')
 			.attr('r', 10)
-			.attr('cx', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon)[0])
-			.attr('cy', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon)[1])
+			.attr('cx', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon).x)
+			.attr('cy', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon).y)
 			.style('fill', 'red')
 			.style('pointer-events', 'none');
 	}

@@ -78,7 +78,7 @@ export class District {
 		public polygon: geometry.Polygon,
 		public type: DistrictType,
 	) {
-		this.originalPolygon = [...polygon];
+		this.originalPolygon = geometry.clonePolygon(polygon);
 	}
 
 	public toJson(): DistrictJson {
@@ -112,7 +112,7 @@ export class District {
 	}
 
 	public originalPolygonPointToPolygonPoint(point: geometry.Point): geometry.Point { // TODO make this smarter...
-		const index = this.originalPolygon.findIndex((p) => geometry.arePointsEquivalent(p, point));
+		const index = this.originalPolygon.points.findIndex((p) => geometry.arePointsEquivalent(p, point));
 		return this.polygon[index];
 	}
 
@@ -157,7 +157,7 @@ export class District {
 			}
 
 			const polygon = queue.shift();
-			const area = d3.polygonArea(polygon);
+			const area = d3.polygonArea(polygon.points.map<[number, number]>((p) => [p.x, p.y]));
 
 			if (area < this.blockSize) {
 				this.blocks.push(polygon);
@@ -165,47 +165,40 @@ export class District {
 			}
 
 			// split in two
-			const edges = polygon.map((point, index, points) => [point, points[(index + 1) % points.length]]);
+			const edges: geometry.Edge[] = polygon.points.map((point, index, points) => {
+				return { p1: point, p2: points[(index + 1) % points.length] };
+			});
 
 			const longest = [...edges].sort((a, b) => {
-				const aLength = Math.pow(
-					Math.pow(a[0][0] - a[1][0], 2) +
-					Math.pow(a[0][1] - a[1][1], 2),
-					0.5);
-				const bLength = Math.pow(
-					Math.pow(b[0][0] - b[1][0], 2) +
-					Math.pow(b[0][1] - b[1][1], 2),
-					0.5);
+				const aLength = geometry.calcDistance(a.p1, a.p2);
+				const bLength = geometry.calcDistance(b.p1, b.p2);
 				return bLength - aLength;
 			})[0];
 
-			let slope = (
-				longest[0][1] - longest[1][1]) /
-				(longest[0][0] - longest[1][0]
-			);
+			let slope = geometry.calcSlope(longest);
 
 			const percent = 0.5 + Math.random() * this.chaos - this.chaos / 2;
-			const splitPoint = [
-				(longest[0][0] + (longest[1][0] - longest[0][0]) * percent),
-				(longest[0][1] + (longest[1][1] - longest[0][1]) * percent),
-			];
-			slope = -1 / slope; // get perpendicular
+			const splitPoint: geometry.Point = {
+				x: (longest.p1.x + (longest.p2.x - longest.p1.x) * percent),
+				y: (longest.p1.y + (longest.p2.y - longest.p1.y) * percent),
+			};
+			slope = geometry.calcPerpendicularSlope(slope);
 			slope *= (1 + Math.random() * this.chaos - this.chaos / 2);
 			if (slope === Infinity || slope === -Infinity) {
 				console.warn('infinite slope');
 				slope = 999999999;
 			}
 
-			const testEdge: geometry.Edge = [
-				[
-					1000000,
-					slope * (1000000 - splitPoint[0]) + splitPoint[1],
-				],
-				[
-					-1000000,
-					slope * (-1000000 - splitPoint[0]) + splitPoint[1],
-				],
-			];
+			const testEdge: geometry.Edge = {
+				p1: {
+					x: 1000000,
+					y: slope * (1000000 - splitPoint.x) + splitPoint.y,
+				},
+				p2: {
+					x: -1000000,
+					y: slope * (-1000000 - splitPoint.x) + splitPoint.y,
+				},
+			};
 
 			const sliceResult = geometry.slicePolygon(polygon, testEdge, this.streetWidth);
 			if (sliceResult) {

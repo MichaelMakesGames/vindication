@@ -71,33 +71,39 @@ function pickWeighted<T>(items: T[], weightFunc: (item: T) => number, rng): T {
 	throw new Error();
 }
 
+function nodeToKey(node: Point): string {
+	return [node.x, node.y].toString();
+}
+
 function findPath(
 	graph: { [point: string]: Point[] },
-	distanceFunc: (from: Point, to: Point) => number, start: Point, target: Point,
+	distanceFunc: (from: Point, to: Point) => number,
+	start: Point,
+	target: Point,
 ): Point[] {
 	// Dijkstra's algorithm, only runs until target found
-	const dist = {};
-	const prev = {};
-	const q = new PriorityQueue((a, b) => dist[b] - dist[a]);
-	dist[start.toString()] = 0;
+	const dist: {[point: string]: number} = {};
+	const prev: {[point: string]: Point} = {};
+	const q = new PriorityQueue((a, b) => dist[nodeToKey(b)] - dist[nodeToKey(a)]);
+	dist[nodeToKey(start)] = 0;
 	q.enq(start);
 	while (!q.isEmpty()) {
-		let current = q.deq();
-		if (current[0] === target[0] && current[1] === target[1]) {
+		let current: Point = q.deq();
+		if (geometry.arePointsEquivalent(current, target)) {
 			const path = [];
 			while (current) {
 				path.unshift(current);
-				current = prev[current];
+				current = prev[nodeToKey(current)];
 			}
 			return path;
 		}
-		for (const neighbor of graph[current]) {
+		for (const neighbor of graph[nodeToKey(current)]) {
 			const distToNeighbor = distanceFunc(current, neighbor);
-			const newDist = dist[current] + distToNeighbor;
-			const neighborString = neighbor.toString();
-			if (!dist.hasOwnProperty(neighborString) || newDist < dist[neighborString]) {
-				dist[neighborString] = newDist;
-				prev[neighborString] = current;
+			const newDist = dist[nodeToKey(current)] + distToNeighbor;
+			const neighborKey = nodeToKey(neighbor);
+			if (!dist.hasOwnProperty(neighborKey) || newDist < dist[neighborKey]) {
+				dist[neighborKey] = newDist;
+				prev[neighborKey] = current;
 				q.enq(neighbor);
 			}
 		}
@@ -109,24 +115,25 @@ function connectDistricts(
 	graph: { [point: string]: Point[] },
 	curRoads: Edge[],
 ): Edge[] {
-	const startPoint = geometry.getPointClosestTo(start.polygon, end.site);
+	const startPoint = geometry.getPointClosestTo(start.polygon.points, end.site);
 	if (!start.roadEnds.includes(startPoint)) {
 		start.roadEnds.push(startPoint);
 	}
-	const endPoint = geometry.getPointClosestTo(end.polygon, start.site);
+	const endPoint = geometry.getPointClosestTo(end.polygon.points, start.site);
 	if (!end.roadEnds.includes(endPoint)) {
 		end.roadEnds.push(endPoint);
 	}
 
 	function distance(a: Point, b: Point): number {
-		if (curRoads.some((road) => geometry.areEdgesEquivalent(road, [a, b]))) {
+		if (curRoads.some((road) => geometry.areEdgesEquivalent(road, { p1: a, p2: b }))) {
 			return geometry.calcDistance(a, b) * 0.5;
 		} else {
 			return geometry.calcDistance(a, b);
 		}
 	}
+
 	const path: Point[] = findPath(graph, distance, startPoint, endPoint);
-	const roads = geometry.getPolygonEdges(path);
+	const roads = geometry.getPolygonEdges({ points: path });
 	roads.pop();
 
 	return roads;
@@ -134,14 +141,17 @@ function connectDistricts(
 
 function createRoads(
 	districts: District[],
-	diagram: d3.VoronoiDiagram<Point>, graph: { [point: string]: Point[] },
+	diagram: d3.VoronoiDiagram<Point>,
+	graph: { [point: string]: Point[] },
 	options: Options,
 ): Edge[] {
-	const villageVoronoi = voronoi();
-	villageVoronoi.extent([
-		[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2],
-		[options.width + SITE_GRID_SIZE * 2, options.height + SITE_GRID_SIZE * 2],
-	]);
+	const villageVoronoi = voronoi<Point>()
+		.x((d) => d.x)
+		.y((d) => d.y)
+		.extent([
+			[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2],
+			[options.width + SITE_GRID_SIZE * 2, options.height + SITE_GRID_SIZE * 2],
+		]);
 	const villages = districts.filter((d) => d.type === 'village');
 	const villageDiagram = villageVoronoi(villages.map((v) => v.site));
 
@@ -149,11 +159,24 @@ function createRoads(
 
 	// Connect villages with roads according to delauney triangulation
 	const triangles = villageDiagram.triangles();
+	const connectedSites: Edge[] = [];
 	for (const triangle of triangles) {
-		const triangleDistricts = triangle.map((site) => districts.find((d) => site.toString() === d.site.toString()));
-		roads.push(...connectDistricts(triangleDistricts[0], triangleDistricts[1], graph, roads));
-		roads.push(...connectDistricts(triangleDistricts[1], triangleDistricts[2], graph, roads));
-		roads.push(...connectDistricts(triangleDistricts[2], triangleDistricts[0], graph, roads));
+		const triangleDistricts = triangle.map((site) => districts.find((d) => geometry.arePointsEquivalent(site, d.site)));
+		const edge1 = { p1: triangle[0], p2: triangle[1] };
+		const edge2 = { p1: triangle[1], p2: triangle[2] };
+		const edge3 = { p1: triangle[2], p2: triangle[0] };
+		if (!connectedSites.some((edge) => geometry.areEdgesEquivalent(edge, edge1))) {
+			roads.push(...connectDistricts(triangleDistricts[0], triangleDistricts[1], graph, roads));
+			connectedSites.push(edge1);
+		}
+		if (!connectedSites.some((edge) => geometry.areEdgesEquivalent(edge, edge2))) {
+			roads.push(...connectDistricts(triangleDistricts[1], triangleDistricts[2], graph, roads));
+			connectedSites.push(edge2);
+		}
+		if (!connectedSites.some((edge) => geometry.areEdgesEquivalent(edge, edge2))) {
+			roads.push(...connectDistricts(triangleDistricts[2], triangleDistricts[0], graph, roads));
+			connectedSites.push(edge3);
+		}
 	}
 
 	// Remove roads adjacent to villages
@@ -167,8 +190,8 @@ function createRoads(
 
 	// Recalculate road ends
 	for (const village of villages) {
-		village.roadEnds = village.polygon.filter((p) => {
-			return roads.some((road) => geometry.arePointsEquivalent(road[0], p) || geometry.arePointsEquivalent(road[1], p));
+		village.roadEnds = village.polygon.points.filter((p) => {
+			return roads.some((road) => geometry.arePointsEquivalent(road.p1, p) || geometry.arePointsEquivalent(road.p2, p));
 		});
 	}
 
@@ -213,7 +236,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		},
 	};
 
-	const voronoiDiagram = voronoi();
+	const voronoiDiagram = voronoi<Point>().x((d) => d.x).y((d) => d.y);
 	voronoiDiagram.extent([
 		[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2],
 		[options.width + SITE_GRID_SIZE * 2, options.height + SITE_GRID_SIZE * 2],
@@ -224,11 +247,11 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		for (let j = 0; j < options.height; j += SITE_GRID_SIZE) {
 			let done = false;
 			while (!done) {
-				const point: Point = [
-					Math.floor(rng.random() * SITE_GRID_SIZE) + i,
-					Math.floor(rng.random() * SITE_GRID_SIZE) + j,
-				];
-				if (points.every((p) => p[0] !== point[0] && p[1] !== point[1])) {
+				const point: Point = {
+					x: Math.floor(rng.random() * SITE_GRID_SIZE) + i,
+					y: Math.floor(rng.random() * SITE_GRID_SIZE) + j,
+				};
+				if (points.every((p) => p.x !== point.x && p.y !== point.y)) {
 					points.push(point);
 					done = true;
 				}
@@ -238,39 +261,43 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 	const diagram = voronoiDiagram(points);
 
-	const polygons: any[] = diagram.polygons().filter(Boolean);
-	const districts: District[] = polygons.map((polygon, index) => {
+	const d3Polygons = diagram.polygons().filter(Boolean);
+	const districts: District[] = d3Polygons.map((d3Polygon, index) => {
+		const polygon = { points: d3Polygon.map(([x, y]) => ({ x, y })) };
 		const district = new District(index, polygon, 'rural');
-		district.site = polygon.data;
+		district.site = d3Polygon.data;
 		return district;
 	});
 
-	const districtsBySite: { string: District } = districts.reduce((acc: { string: District }, cur: District) => {
-		acc[cur.site.toString()] = cur;
+	const districtsBySite: { [site: string]: District } = districts.reduce((
+		acc: { [site: string]: District },
+		cur: District,
+	) => {
+		acc[nodeToKey(cur.site)] = cur;
 		return acc;
 	}, {} as { string: District });
 	function getDistrictBySite(site: Point): District {
-		return districtsBySite[site.toString()];
+		return districtsBySite[nodeToKey(site)];
 	}
 
 	// add neighbors to districts
 	for (const edge of diagram.edges.filter((e) => e && e.left && e.right)) {
-		const left = getDistrictBySite(edge.left as [number, number]);
-		const right = getDistrictBySite(edge.right as [number, number]);
+		const left = getDistrictBySite(edge.left.data);
+		const right = getDistrictBySite(edge.right.data);
 		left.neighbors.push(right);
 		right.neighbors.push(left);
 	}
 
-	const intersections = [];
+	const intersections: number[][] = [];
 	const intersectionGraph: { [point: string]: Point[] } = {};
 	for (const edge of diagram.edges.filter(Boolean)) {
 		intersectionGraph[edge[0].toString()] = intersectionGraph[edge[0].toString()] || [];
-		intersectionGraph[edge[0].toString()].push(edge[1]);
+		intersectionGraph[edge[0].toString()].push({ x: edge[1][0], y: edge[1][1] });
 		if (!intersections.indexOf(edge[0])) {
 			intersections.push(edge[0]);
 		}
 		intersectionGraph[edge[1].toString()] = intersectionGraph[edge[1].toString()] || [];
-		intersectionGraph[edge[1].toString()].push(edge[0]);
+		intersectionGraph[edge[1].toString()].push({ x: edge[0][0], y: edge[0][1] });
 		if (intersections.indexOf(edge[1]) === -1) {
 			intersections.push(edge[1]);
 		}
@@ -280,32 +307,17 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		return getCellPolygon(diagram.cells[site.index]);
 	}
 	function getCellPolygon(cell) {
-		return polygons.find((polygon) => polygon.data.toString() === cell.site.data.toString());
+		return d3Polygons.find((polygon) => nodeToKey(polygon.data) === nodeToKey(cell.site.data));
 	}
 	function getPolygonCell(polygon) {
-		return diagram.cells.find((cell) => cell && cell.site.data.toString() === polygon.data.toString());
+		return diagram.cells.find((cell) => cell && nodeToKey(cell.site.data) === nodeToKey(polygon.data));
 	}
 
 	// create ocean
 	if ([MapType.Bay, MapType.Delta, MapType.Coastal].includes(mapType)) {
 		for (const district of districts) {
-			if (district.site[1] > options.height * 0.75) {
+			if (district.site.y > options.height * 0.75) {
 				district.type = 'water';
-			}
-		}
-	}
-
-	// create bay
-	const bayIterations = Math.floor(rng.random() * 2 + 1);
-	for (let i = 0; i < bayIterations; i++) {
-		if (mapType === MapType.Bay) {
-			const coastalDistricts = districts.filter((d) => d.type !== 'water' && d.neighbors.some((n) => n.type === 'water'));
-			coastalDistricts.sort((a, b) => Math.abs(a.site[0] - options.width / 2) - Math.abs(b.site[0] - options.width / 2));
-			const choices = coastalDistricts[0].neighbors.filter((d) => d.type !== 'water');
-			const choice = choices[Math.floor(rng.random() * choices.length)];
-			choice.type = 'water';
-			for (const neighbor of choice.neighbors) {
-				neighbor.type = 'water';
 			}
 		}
 	}
@@ -314,12 +326,15 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	const coastEdges: Edge[] = [];
 	(() => {
 		for (const edge of diagram.edges.filter((e) => e && e.left && e.right)) {
-			const leftDistrictType = getDistrictBySite(edge.left as Point).type;
-			const rightDistrictType = getDistrictBySite(edge.right as Point).type;
+			const leftDistrictType = getDistrictBySite(edge.left.data).type;
+			const rightDistrictType = getDistrictBySite(edge.right.data).type;
 			const leftIsWater = leftDistrictType === 'water';
 			const rightIsWater = rightDistrictType === 'water';
 			if ((leftIsWater && !rightIsWater) || (!leftIsWater && rightIsWater)) {
-				coastEdges.push([...edge] as Edge);
+				coastEdges.push({
+					p1: { x: edge[0][0], y: edge[0][1] },
+					p2: { x: edge[1][0], y: edge[1][1] },
+				});
 			}
 		}
 		const coastLines = geometry.joinEdges(coastEdges);
@@ -329,9 +344,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 	// make river
 	const riverWidth = Math.floor(rng.random() * 30 + 30);
-	const subRiverWidth = Math.floor(rng.random() * riverWidth / 3 + riverWidth / 3);
-	const river = [];
-	const subRiver = [];
+	const river: Edge[] = [];
 	(() => {
 		const origin = intersections
 			.filter((p) => p[1] === SITE_GRID_SIZE * -2)
@@ -339,49 +352,38 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		[0];
 
 		const destination = coastEdges
-			.map<Point>((e) => e[0])
+			.map<Point>((e) => e.p1)
 			.sort((a, b) => {
-				return Math.abs(a[0] -
-					options.width * (mapType === MapType.Delta ? 1 / 3 : 1 / 2)) -
-					Math.abs(b[0] - options.width / 3);
+				return (
+					Math.abs(a.x - options.width * 0.5) -
+					Math.abs(b.x - options.width * 0.5)
+				);
 			})
 		[0];
 
-		const path = findPath(intersectionGraph, (a, b) => geometry.calcDistance(a, b), origin, destination);
-		river.push(...geometry.getPolygonEdges(path));
+		const path = findPath(
+			intersectionGraph,
+			(a, b) => geometry.calcDistance(a, b),
+			{ x: origin[0], y: origin[1] },
+			destination,
+		);
+		river.push(...geometry.getPolygonEdges({ points: path }));
 
-		if (mapType === MapType.Delta) {
-			const index = Math.floor(rng.random() * path.length / 3 + path.length / 3);
-			const subDestination = path[index];
-			const neighborDx = (destination[0] - path[index - 1][0]) + (destination[0] - path[index + 1][0]);
-			const subOriginOptions = coastEdges
-				.map<Point>((e) => e[0])
-				.filter((p) => neighborDx > 0 ? p[0] < origin[0] : p[0] > origin[0]);
-			const subOrigin = subOriginOptions
-				.sort((a, b) => Math.abs(a[0] - options.width * 2 / 3) - Math.abs(b[0] - options.width * 2 / 3))
-			[0];
-			const distance = (a, b) => {
-				if (river.some((e) => geometry.areEdgesEquivalent(e, [a, b]))) {
-					return geometry.calcDistance(a, b) * 1;
-				} else {
-					return geometry.calcDistance(a, b);
-				}
-			};
-			const subPath = findPath(intersectionGraph, distance, subOrigin, subDestination);
-			subRiver.push(...geometry.getPolygonEdges(subPath));
-			map.subRiver.path = subPath;
-			map.subRiver.width = subRiverWidth;
-		}
-
-		for (const edge of river.concat(subRiver)) {
+		for (const edge of river) {
 			const vEdge = diagram.edges.filter(Boolean).find((e) => {
-				return geometry.areEdgesEquivalent(e as Edge, edge);
+				return geometry.areEdgesEquivalent(
+					{
+						p1: { x: e[0][0], y: e[0][1] },
+						p2: { x: e[1][0], y: e[1][1] },
+					},
+					edge,
+				);
 			});
 			if (!vEdge) {
 				break;
 			}
-			const left = vEdge.left ? getDistrictBySite(vEdge.left as Point) : null;
-			const right = vEdge.right ? getDistrictBySite(vEdge.right as Point) : null;
+			const left = vEdge.left ? getDistrictBySite(vEdge.left.data) : null;
+			const right = vEdge.right ? getDistrictBySite(vEdge.right.data) : null;
 			if (left && right) {
 				left.rivers.push(right);
 				right.rivers.push(left);
@@ -393,17 +395,17 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	})();
 
 	// remove river from intersections graph
-	for (const edge of river) {
-		const graph = intersectionGraph;
-		const p0String = edge[0].toString();
-		const p1String = edge[1].toString();
-		if (graph[p0String]) {
-			graph[p0String] = graph[p0String].filter((p: Point) => !geometry.arePointsEquivalent(p, edge[1]));
-		}
-		if (graph[p1String]) {
-			graph[p1String] = graph[p1String].filter((p: Point) => !geometry.arePointsEquivalent(p, edge[0]));
-		}
-	}
+	// for (const edge of river) {
+	// 	const graph = intersectionGraph;
+	// 	const p0String = [edge.p1.x, edge.p1.y].toString();
+	// 	const p1String = [edge.p2.x, edge.p2.y].toString();
+	// 	if (graph[p0String]) {
+	// 		graph[p0String] = graph[p0String].filter((p: Point) => !geometry.arePointsEquivalent(p, edge.p2));
+	// 	}
+	// 	if (graph[p1String]) {
+	// 		graph[p1String] = graph[p1String].filter((p: Point) => !geometry.arePointsEquivalent(p, edge.p1));
+	// 	}
+	// }
 
 	// place villages
 	for (let i = 0; i < NUM_VILLAGES; i++) {
@@ -438,10 +440,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			const theta = Math.atan(slope);
 			const dx = Math.cos(theta) * (riverWidth / 2 + 3);
 			const dy = Math.sin(theta) * (riverWidth / 2 + 3);
-			const bridgeEdge: Edge = [
-				[point[0] + dx, point[1] + dy],
-				[point[0] - dx, point[1] - dy],
-			];
+			const bridgeEdge: Edge = {
+				p1: { x: point.x + dx, y: point.y + dy },
+				p2: { x: point.x - dx, y: point.y - dy },
+			};
 			map.bridges.push(bridgeEdge);
 		}
 	}
@@ -495,7 +497,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		district.chaos = 0;
 	}
 
-	let riversAndRoads = river.concat(subRiver).concat(mainRoads);
+	let riversAndRoads = river.concat(mainRoads);
 	// remove duplicates
 	riversAndRoads = riversAndRoads.reduce((acc, cur) => {
 		if (acc.every((edge) => !geometry.areEdgesEquivalent(edge, cur))) {
@@ -504,29 +506,30 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		return acc;
 	}, []);
 	// make space for roads and rivers
-	console.log('creating main roads');
 	for (const district of districts.filter((d) => d.type !== 'water')) {
-		const copy = district.polygon.map((point) => [...point]);
-		const edges = copy.map((p, i) => [p, copy[(i + 1) % copy.length]] as Edge);
+		const copy = geometry.clonePolygon(district.polygon);
+		const edges = geometry.getPolygonEdges(copy);
 		edges.forEach((edge, index) => {
 			for (const road of riversAndRoads) {
 				if (geometry.areEdgesEquivalent(edge, road)) {
-					if (copy.indexOf(edge[0]) !== -1) {
+					if (copy.points.indexOf(edge.p1) !== -1) {
 						let inset: number;
 						if (river.includes(road)) {
 							inset = riverWidth / 2 + 3;
-						} else if (subRiver.includes(road)) {
-							inset = subRiverWidth / 2 + 3;
 						} else {
 							inset = 3;
 						}
 						if (district.type === 'rural') {
 							inset += 2;
 						}
-						const result = geometry.insetPolygonEdge(district.polygon, district.polygon[copy.indexOf(edge[0])], inset);
+						const result = geometry.insetPolygonEdge(
+							district.polygon,
+							district.polygon.points[copy.points.indexOf(edge.p1)],
+							inset,
+						);
 						if (result) {
 							for (const splicedIndex of result.spliced) {
-								copy.splice(splicedIndex, 1);
+								copy.points.splice(splicedIndex, 1);
 							}
 							if (district.type === 'rural') { // add urban sprawl buildings
 								let numBuildings;
@@ -558,7 +561,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 										tries++;
 									}
 									const width = rng.random() * (maxWidth - minWidth) + minWidth;
-									const rect = geometry.createRectFromEdge([p1, p2], width, district.site);
+									const rect = geometry.createRectFromEdge({ p1, p2 }, width, district.site);
 									map.sprawl.push(rect);
 								}
 							}
@@ -584,7 +587,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		}
 
 		if (inset) {
-			for (const point of district.polygon) {
+			for (const point of district.polygon.points) {
 				geometry.insetPolygonEdge(district.polygon, point, inset);
 			}
 		}
