@@ -23,13 +23,13 @@ io.on('connection', socket => {
   socket.emit('roles', roles);
   if (gameState) {
     socket.emit('start-game');
-    socket.emit('preview-map', mapJson, {width: 3200, height: 1800, seed: 0});
+    socket.emit('preview-map', mapJson, {width: 4096, height: 4096, seed: 0});
   }
 
   socket.on('preview-map', seed => {
     const options = {
-      width: 3200,
-      height: 1800,
+      width: 4096,
+      height: 4096,
       seed
     }
     socket.emit('preview-map', generate(options), options);
@@ -45,8 +45,8 @@ io.on('connection', socket => {
 
   socket.on('start-game', ({seed, role}) => {
     mapJson = generate({
-      width: 3200,
-      height: 1800,
+      width: 4096,
+      height: 4096,
       seed: parseFloat(seed || Math.random() * 1000000)
     });
     map = mapFromJson(mapJson);

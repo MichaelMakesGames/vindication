@@ -1,6 +1,7 @@
-import { voronoi } from 'd3';
+import { mean, scaleLinear, voronoi } from 'd3';
+import FastSimplexNoise from 'fast-simplex-noise';
 import * as PriorityQueue from 'priorityqueuejs';
-import * as Random from 'rng';
+import * as seedrandom from 'seedrandom';
 
 import { District, DistrictJson } from '../common/district';
 import * as geometry from '../common/geometry';
@@ -18,12 +19,12 @@ enum MapType {
 
 export function generate(options: Options): MapJson {
 	console.info('Seed:', options.seed);
-	const rng = new Random.MT(options.seed);
+	const rng = seedrandom(options.seed);
 	let map: MapJson = null;
 	let tries = 0;
 	while (!map) {
 		const types = [MapType.Bay, MapType.Coastal, MapType.Delta];
-		const type = types[Math.floor(rng.random() * types.length)];
+		const type = types[Math.floor(rng() * types.length)];
 		map = generateMap(type, options, rng);
 		tries++;
 		if (tries >= 860) {
@@ -53,13 +54,21 @@ const OUTER_CHAOS = 0;
 const OUTER_BLOCK_SIZE = 1200;
 const OUTER_STREET_WIDTH = 4;
 
-const SITE_GRID_SIZE = 100;
+const SITE_GRID_SIZE = 128;
+
+const NOISE_FREQUENCY = 0.001;
+const NOISE_OCTAVES = 4;
+const NOISE_MIN = -0.33;
+const NOISE_MAX = 0.33;
+
+const BASE_FLUX = 0.02;
+const EROSION_CYCLES = 2;
 
 function pickWeighted<T>(items: T[], weightFunc: (item: T) => number, rng): T {
 	const weights = items.map((item) => weightFunc(item));
 	const totalWeight = weights.reduce((acc, cur) => acc + cur, 0);
 
-	const choice = rng.random() * totalWeight;
+	const choice = rng() * totalWeight;
 
 	let currentWeight = 0;
 	for (let i = 0; i < items.length; i++) {
@@ -237,19 +246,16 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	};
 
 	const voronoiDiagram = voronoi<Point>().x((d) => d.x).y((d) => d.y);
-	voronoiDiagram.extent([
-		[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2],
-		[options.width + SITE_GRID_SIZE * 2, options.height + SITE_GRID_SIZE * 2],
-	]);
+	voronoiDiagram.extent([[0, 0], [options.width, options.height]]);
 
 	const points: Point[] = [];
-	for (let i = SITE_GRID_SIZE * -2; i < options.width + SITE_GRID_SIZE * 2; i += SITE_GRID_SIZE) {
+	for (let i = 0; i < options.width; i += SITE_GRID_SIZE) {
 		for (let j = 0; j < options.height; j += SITE_GRID_SIZE) {
 			let done = false;
 			while (!done) {
 				const point: Point = {
-					x: Math.floor(rng.random() * SITE_GRID_SIZE) + i,
-					y: Math.floor(rng.random() * SITE_GRID_SIZE) + j,
+					x: Math.floor(rng() * SITE_GRID_SIZE) + i,
+					y: Math.floor(rng() * SITE_GRID_SIZE) + j,
 				};
 				if (points.every((p) => p.x !== point.x && p.y !== point.y)) {
 					points.push(point);
@@ -288,18 +294,18 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		right.neighbors.push(left);
 	}
 
-	const intersections: number[][] = [];
+	const riverSites: number[][] = [];
 	const intersectionGraph: { [point: string]: Point[] } = {};
 	for (const edge of diagram.edges.filter(Boolean)) {
 		intersectionGraph[edge[0].toString()] = intersectionGraph[edge[0].toString()] || [];
 		intersectionGraph[edge[0].toString()].push({ x: edge[1][0], y: edge[1][1] });
-		if (!intersections.indexOf(edge[0])) {
-			intersections.push(edge[0]);
+		if (!riverSites.some((site) => site[0] === edge[0][0] && site[1] === edge[0][1])) {
+			riverSites.push(edge[0]);
 		}
 		intersectionGraph[edge[1].toString()] = intersectionGraph[edge[1].toString()] || [];
 		intersectionGraph[edge[1].toString()].push({ x: edge[0][0], y: edge[0][1] });
-		if (intersections.indexOf(edge[1]) === -1) {
-			intersections.push(edge[1]);
+		if (!riverSites.some((site) => site[0] === edge[1][0] && site[1] === edge[1][1])) {
+			riverSites.push(edge[1]);
 		}
 	}
 
@@ -313,12 +319,98 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		return diagram.cells.find((cell) => cell && nodeToKey(cell.site.data) === nodeToKey(polygon.data));
 	}
 
-	// create ocean
-	if ([MapType.Bay, MapType.Delta, MapType.Coastal].includes(mapType)) {
-		for (const district of districts) {
-			if (district.site.y > options.height * 0.75) {
-				district.type = 'water';
+	// create height map
+	const noiseGen = new FastSimplexNoise({
+		frequency: NOISE_FREQUENCY,
+		max: NOISE_MAX,
+		min: NOISE_MIN,
+		octaves: NOISE_OCTAVES,
+		random: rng,
+	});
+	const yHeightScale = scaleLinear()
+		.domain([0, options.height])
+		.range([1, -1]);
+	const xHeightScale = scaleLinear()
+		.domain([0, options.width / 3, options.width / 2, options.width * 2 / 3, options.width])
+		.range([0.5, 0.5, -0, 0.5, 0.5]);
+
+	function calcHeight(x, y): number {
+		const randomHeightFactor = noiseGen.scaled2D(x, y);
+		const yHeightFactor = yHeightScale(y);
+		const xHeightFactor = xHeightScale(x);
+		return (yHeightFactor + xHeightFactor) / 2 + randomHeightFactor;
+	}
+
+	const getNeighborsCache: {[key: string]: number[][]} = {};
+	function getNeighbors(site: number[]): number[][] {
+		const cacheKey = `${site[0]},${site[1]}`;
+		if (getNeighborsCache[cacheKey]) {
+			return getNeighborsCache[cacheKey];
+		}
+
+		const rightNeighbors = diagram.edges
+			.filter((e) => e[0][0] === site[0] && e[0][1] === site[1])
+			.map((e) => riverSites.find((s) => e[1][0] === s[0] && e[1][1] === s[1]));
+		const leftNeighbors = diagram.edges
+			.filter((e) => e[1][0] === site[0] && e[1][1] === site[1])
+			.map((e) => riverSites.find((s) => e[0][0] === s[0] && e[0][1] === s[1]));
+
+		const neighbors = [...rightNeighbors, ...leftNeighbors];
+		getNeighborsCache[cacheKey] = neighbors;
+		return neighbors;
+	}
+
+	// push height and flux to each river site
+	riverSites.forEach((s) => s.push(calcHeight(s[0], s[1]), 0));
+
+	function getLowestNeighbor(site: number[]): number[] {
+		const neighbors = getNeighbors(site);
+		neighbors.sort((a, b) => a[2] - b[2]);
+		return neighbors[0];
+	}
+
+	function isDepression(site: number[]) {
+		return (
+			site[1] !== options.height &&
+			getNeighbors(site).every((n) => n[2] >= site[2])
+		);
+	}
+
+	function fillDepressions() {
+		// depression filling
+		let depressions = riverSites.filter(isDepression);
+		while (depressions.length) {
+			for (const depression of depressions) {
+				depression[2] = getLowestNeighbor(depression)[2] + 0.001;
 			}
+			depressions = riverSites.filter(isDepression);
+		}
+	}
+
+	// erosion
+	fillDepressions();
+	for (let i = 0; i < EROSION_CYCLES; i++) {
+		riverSites.forEach((s) => s[3] = BASE_FLUX);
+		riverSites.sort((a, b) => b[2] - a[2]);
+		for (const site of riverSites) {
+			const neighbor = getLowestNeighbor(site);
+			neighbor[3] += site[3] * (site[2] - neighbor[2]);
+		}
+		const meanFlux = mean(riverSites.map((s) => s[3]));
+		for (const site of riverSites) {
+			site[2] -= site[3] + meanFlux;
+		}
+	}
+	fillDepressions();
+
+	// set district heights
+	for (const district of districts) {
+		const cornerHeights = riverSites.filter((site) => {
+			return district.polygon.points.some((p) => p.x === site[0] && p.y === site[1]);
+		}).map((site) => site[2]);
+		district.height = mean(cornerHeights);
+		if (district.height < 0) {
+			district.type = 'water';
 		}
 	}
 
@@ -343,69 +435,59 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	})();
 
 	// make river
-	const riverWidth = Math.floor(rng.random() * 30 + 30);
-	const river: Edge[] = [];
-	(() => {
-		const origin = intersections
-			.filter((p) => p[1] === SITE_GRID_SIZE * -2)
-			.sort((a, b) => Math.abs(a[0] - options.width / 2) - Math.abs(b[0] - options.width / 2))
+	const riverWidth = Math.floor(rng() * 30 + 30);
+	const river: Point[] = [];
+
+	// start at lowest site on upper edge
+	let riverNode = riverSites
+		.filter((s) => s[1] === 0)
+		.sort((a, b) => a[2] - b[2])
 		[0];
+	river.push({ x: riverNode[0], y: riverNode[1] });
 
-		const destination = coastEdges
-			.map<Point>((e) => e.p1)
-			.sort((a, b) => {
-				return (
-					Math.abs(a.x - options.width * 0.5) -
-					Math.abs(b.x - options.width * 0.5)
-				);
-			})
-		[0];
-
-		const path = findPath(
-			intersectionGraph,
-			(a, b) => geometry.calcDistance(a, b),
-			{ x: origin[0], y: origin[1] },
-			destination,
-		);
-		river.push(...geometry.getPolygonEdges({ points: path }));
-
-		for (const edge of river) {
-			const vEdge = diagram.edges.filter(Boolean).find((e) => {
-				return geometry.areEdgesEquivalent(
-					{
-						p1: { x: e[0][0], y: e[0][1] },
-						p2: { x: e[1][0], y: e[1][1] },
-					},
-					edge,
-				);
-			});
-			if (!vEdge) {
-				break;
-			}
-			const left = vEdge.left ? getDistrictBySite(vEdge.left.data) : null;
-			const right = vEdge.right ? getDistrictBySite(vEdge.right.data) : null;
-			if (left && right) {
-				left.rivers.push(right);
-				right.rivers.push(left);
-			}
+	// flow to lowest neighbor until coast is reached
+	while (true) {
+		const next = getLowestNeighbor(riverNode);
+		river.push({
+			x: next[0],
+			y: next[1],
+		});
+		const onCoast = districts.filter((d) => d.type === 'water').some((d) => {
+			return d.polygon.points.some((p) => p.x === next[0] && p.y === next[1]);
+		});
+		if (!onCoast) {
+			riverNode = next;
+		} else {
+			break;
 		}
+	}
 
-		map.river.path = path;
-		map.river.width = riverWidth;
-	})();
+	map.river.path = river;
+	map.river.width = riverWidth;
 
-	// remove river from intersections graph
-	// for (const edge of river) {
-	// 	const graph = intersectionGraph;
-	// 	const p0String = [edge.p1.x, edge.p1.y].toString();
-	// 	const p1String = [edge.p2.x, edge.p2.y].toString();
-	// 	if (graph[p0String]) {
-	// 		graph[p0String] = graph[p0String].filter((p: Point) => !geometry.arePointsEquivalent(p, edge.p2));
-	// 	}
-	// 	if (graph[p1String]) {
-	// 		graph[p1String] = graph[p1String].filter((p: Point) => !geometry.arePointsEquivalent(p, edge.p1));
-	// 	}
-	// }
+	// add river to districts
+	const riverEdges = geometry.getPolygonEdges({points: river});
+	riverEdges.length -= 1;
+	for (const edge of riverEdges) {
+		const vEdge = diagram.edges.filter(Boolean).find((e) => {
+			return geometry.areEdgesEquivalent(
+				{
+					p1: { x: e[0][0], y: e[0][1] },
+					p2: { x: e[1][0], y: e[1][1] },
+				},
+				edge,
+			);
+		});
+		if (!vEdge) {
+			break;
+		}
+		const left = vEdge.left ? getDistrictBySite(vEdge.left.data) : null;
+		const right = vEdge.right ? getDistrictBySite(vEdge.right.data) : null;
+		if (left && right) {
+			left.rivers.push(right);
+			right.rivers.push(left);
+		}
+	}
 
 	// place villages
 	for (let i = 0; i < NUM_VILLAGES; i++) {
@@ -427,7 +509,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		}
 		// if still no bridges, choose a random neighbor across the river
 		if (!village.bridges.length) {
-			const bridgeTo = village.rivers[Math.floor(rng.random() * village.rivers.length)];
+			const bridgeTo = village.rivers[Math.floor(rng() * village.rivers.length)];
 			village.bridges.push(bridgeTo);
 			bridgeTo.bridges.push(village);
 		}
@@ -461,8 +543,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	const urbanRim: District[] = [];
 	urbanize(core, urbanRim);
 	for (let i = 0; i < NUM_URBAN_DISTRICTS; i++) {
-		const newUrbanDistrict = pickWeighted<District>(urbanRim, (d) => d.calcUrbanScore(), rng);
-		urbanize(newUrbanDistrict, urbanRim);
+		if (urbanRim.length) {
+			const newUrbanDistrict = pickWeighted<District>(urbanRim, (d) => d.calcUrbanScore(), rng);
+			urbanize(newUrbanDistrict, urbanRim);
+		}
 	}
 
 	// TODO determine urban district densities
@@ -497,7 +581,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		district.chaos = 0;
 	}
 
-	let riversAndRoads = river.concat(mainRoads);
+	let riversAndRoads = riverEdges.concat(mainRoads);
 	// remove duplicates
 	riversAndRoads = riversAndRoads.reduce((acc, cur) => {
 		if (acc.every((edge) => !geometry.areEdgesEquivalent(edge, cur))) {
@@ -514,7 +598,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 				if (geometry.areEdgesEquivalent(edge, road)) {
 					if (copy.points.indexOf(edge.p1) !== -1) {
 						let inset: number;
-						if (river.includes(road)) {
+						if (riverEdges.includes(road)) {
 							inset = riverWidth / 2 + 3;
 						} else {
 							inset = 3;
@@ -544,7 +628,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 									minWidth = 5;
 									maxWidth = 10;
 								} else {
-									numBuildings = rng.random() > 0.9 ? 1 : 0;
+									numBuildings = rng() > 0.9 ? 1 : 0;
 									minWidth = 5;
 									maxWidth = 10;
 								}
@@ -560,7 +644,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 										p2 = geometry.getRandomPointOnEdge(result.newEdge, rng);
 										tries++;
 									}
-									const width = rng.random() * (maxWidth - minWidth) + minWidth;
+									const width = rng() * (maxWidth - minWidth) + minWidth;
 									const rect = geometry.createRectFromEdge({ p1, p2 }, width, district.site);
 									map.sprawl.push(rect);
 								}

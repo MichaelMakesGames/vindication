@@ -34,24 +34,26 @@ export interface DistrictJson {
 	polygon: geometry.Polygon;
 	type: DistrictType;
 	rebelControlled: boolean;
+	height: number;
 }
 
 export class District {
 	public static fromJson(json: DistrictJson): District {
 		const district: District = new District(json.id, json.polygon, json.type);
-		district.name = json.name;
-		district.blocks = json.blocks;
-		district.isCore = json.isCore;
-		district.chaos = json.chaos;
 		district.blockSize = json.blockSize;
-		district.streetWidth = json.streetWidth;
-		district.neighborSites = json.neighbors;
-		district.riverSites = json.rivers;
+		district.blocks = json.blocks;
 		district.bridgeSites = json.bridges;
-		district.roadEnds = json.roadEnds;
-		district.site = json.site;
+		district.chaos = json.chaos;
+		district.height = json.height;
+		district.isCore = json.isCore;
+		district.name = json.name;
+		district.neighborSites = json.neighbors;
 		district.originalPolygon = json.originalPolygon;
 		district.rebelControlled = json.rebelControlled;
+		district.riverSites = json.rivers;
+		district.roadEnds = json.roadEnds;
+		district.site = json.site;
+		district.streetWidth = json.streetWidth;
 		return district;
 	}
 
@@ -68,6 +70,7 @@ export class District {
 	public site: geometry.Point | null = null;
 	public originalPolygon: geometry.Polygon;
 	public rebelControlled: boolean = false;
+	public height: number = 0;
 
 	private neighborSites: geometry.Point[];
 	private riverSites: geometry.Point[];
@@ -87,6 +90,7 @@ export class District {
 			blocks: this.blocks,
 			bridges: this.bridges.map((d) => d.site),
 			chaos: this.chaos,
+			height: this.height,
 			id: this.id,
 			isCore: this.isCore,
 			name: this.name,

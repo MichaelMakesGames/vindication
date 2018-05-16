@@ -176,8 +176,8 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 
 	// tslint:disable:object-literal-sort-keys
 	render(clientState.map, {
-		width: 3200,
-		height: 1800,
+		width: 4096,
+		height: 4096,
 		seed: 0, // not used for rendering
 	});
 	// tslint:enable:object-literal-sort-keys

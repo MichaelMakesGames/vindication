@@ -1,9 +1,8 @@
-import { Random } from 'rng';
 import { District } from '../common/district';
 
 export function generateName(district: District, rng): string {
-	const noun = NOUNS[Math.floor(rng.random() * NOUNS.length)];
-	const modifier = MODIFIERS[Math.floor(rng.random() * MODIFIERS.length)];
+	const noun = NOUNS[Math.floor(rng() * NOUNS.length)];
+	const modifier = MODIFIERS[Math.floor(rng() * MODIFIERS.length)];
 	return `${modifier} ${noun}`;
 }
 

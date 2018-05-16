@@ -12,7 +12,7 @@ export function polygonToSVGPoints(polygon: geometry.Polygon): string {
 export function renderPreview(map: MapJson, options: Options): void {
 	const svg = d3.select('#map-preview');
 	svg.selectAll('*').remove();
-	svg.attr('viewBox', `100 100 ${options.width - 200} ${options.height - 200}`);
+	svg.attr('viewBox', `100 100 ${options.width} ${options.height}`);
 
 	const districtTypeToClassName = {
 		plaza: 'preview-urban-district',
@@ -21,8 +21,12 @@ export function renderPreview(map: MapJson, options: Options): void {
 		village: 'preview-urban-district',
 		water: 'preview-water-district',
 	};
+	const colorScale = d3.scaleLinear<d3.Color>()
+		.domain([-1, -Number.MIN_VALUE, 0, 1])
+		.range([d3.rgb(0, 0, 127), d3.rgb(255, 255, 255), d3.rgb(0, 127, 0), d3.rgb(255, 255, 255)]);
 	svg.selectAll('polygon').data(map.districts).enter().append('polygon')
 		.attr('points', (d) => polygonToSVGPoints(d.originalPolygon))
+		.style('fill', (d) => d.type === 'rural' ? colorScale(d.height).toString() : '')
 		.attr('class', (d) => districtTypeToClassName[d.type]);
 	svg.append('polyline')
 		.attr('points', polygonToSVGPoints({ points: map.river.path }))
@@ -208,16 +212,16 @@ function renderCoast(coast: geometry.Point[]): void {
 	coast.pop();
 	const beachWidth = 5;
 
-	d3Coast.append('path')
-		.attr('d', line(coast))
-		.attr('fill', 'none')
-		.attr('stroke', 'rgb(100, 100, 200)')
-		.attr('stroke-width', beachWidth + 142);
-	d3Coast.append('path')
-		.attr('d', line(coast))
-		.attr('fill', 'none')
-		.attr('stroke', 'rgb(200, 200, 255)')
-		.attr('stroke-width', beachWidth + 140);
+	// d3Coast.append('path')
+	// 	.attr('d', line(coast))
+	// 	.attr('fill', 'none')
+	// 	.attr('stroke', 'rgb(100, 100, 200)')
+	// 	.attr('stroke-width', beachWidth + 142);
+	// d3Coast.append('path')
+	// 	.attr('d', line(coast))
+	// 	.attr('fill', 'none')
+	// 	.attr('stroke', 'rgb(200, 200, 255)')
+	// 	.attr('stroke-width', beachWidth + 140);
 	d3Coast.append('path')
 		.attr('d', line(coast))
 		.attr('fill', 'none')

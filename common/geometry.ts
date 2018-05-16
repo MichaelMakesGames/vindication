@@ -237,7 +237,7 @@ export function rotatePoint(point: Point, origin: Point, theta: number): Point {
 }
 
 export function getRandomPointOnEdge(edge: Edge, rng: any): Point {
-	const n: number = rng.random();
+	const n: number = rng();
 	const dx = edge.p1.x - edge.p2.x;
 	const dy = edge.p1.y - edge.p2.y;
 	return {

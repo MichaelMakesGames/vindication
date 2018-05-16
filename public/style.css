@@ -190,12 +190,12 @@ svg {
 .preview-urban-district {
   stroke: white;
   stroke-width: 1;
-  fill: #666
+  fill: #333
 }
 .preview-water-district {
   stroke-width: 1;
-  stroke: rgb(150, 150, 255);
-  fill: rgb(150, 150, 255);
+  stroke: rgb(200, 200, 255);
+  fill: 200(150, 200, 255);
 }
 .preview-rural-district {
   stroke: rgb(50, 100, 0);
@@ -207,7 +207,7 @@ svg {
   fill: none;
 }
 .preview-river {
-  stroke: rgb(150, 150, 255);
+  stroke: rgb(200, 200, 255);
   fill: none;
 }
 .preview-bridge {
