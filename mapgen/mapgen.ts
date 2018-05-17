@@ -27,7 +27,7 @@ export function generate(options: Options): MapJson {
 		const type = types[Math.floor(rng() * types.length)];
 		map = generateMap(type, options, rng);
 		tries++;
-		if (tries >= 860) {
+		if (tries >= 86) {
 			console.error('Too many tries, abandoning');
 			break;
 		}
@@ -35,8 +35,8 @@ export function generate(options: Options): MapJson {
 	return map;
 }
 
-const NUM_VILLAGES = 15;
-const NUM_URBAN_DISTRICTS = 20;
+const NUM_VILLAGES = 25;
+const NUM_URBAN_DISTRICTS = 75;
 
 const VILLAGE_CHAOS = 0.25;
 const VILLAGE_BLOCK_SIZE = 1000;
@@ -78,6 +78,10 @@ function pickWeighted<T>(items: T[], weightFunc: (item: T) => number, rng): T {
 		}
 	}
 	throw new Error();
+}
+
+function pickRandom<T>(items: T[], rng: () => number): T {
+	return items[Math.floor(items.length * rng())];
 }
 
 function nodeToKey(node: Point): string {
@@ -207,25 +211,58 @@ function createRoads(
 	return roads;
 }
 
-function urbanize(district: District, urbanRim: District[]): void {
-	district.type = 'urban';
-	district.chaos = MID_CHAOS;
-	district.blockSize = MID_BLOCK_SIZE;
-	district.streetWidth = MID_STREET_WIDTH;
+function urbanizationDifficulty(from: District, to: District): number {
+	const canBeUrbanized = to.type !== 'water' && to.type !== 'urban';
+	const crossingWithoutBridge = from.rivers.includes(to) && !from.bridges.includes(to);
+	const crossingWithBridge = from.bridges.includes(to);
+	const sharedRiver = from.rivers.some((r) => r.rivers.includes(to));
+	const sharedRoad = from.roads.includes(to);
+	const sharedCoast = from.neighbors.filter((n) => n.type === 'water').some((n) => n.neighbors.includes(to));
 
-	for (const neighbor of district.neighbors) {
-		if (
-			neighbor.type !== 'urban' &&
-			neighbor.type !== 'water' &&
-			!urbanRim.includes(neighbor) &&
-			(!district.rivers.includes(neighbor) || district.bridges.includes(neighbor))
-		) {
-			urbanRim.push(neighbor);
+	return (
+		(canBeUrbanized ? 1 : Infinity) *
+		(crossingWithoutBridge ? Infinity : 1) *
+		(crossingWithBridge ? 0.5 : 1) *
+		(sharedRiver ? 0.5 : 1) *
+		(sharedRoad ? 0.5 : 1) *
+		(sharedCoast ? 0.5 : 1) *
+		16
+	);
+}
+
+function urbanize(core: District, maxDistricts: number): void {
+	const dist: {[id: number]: number} = {};
+	const q = new PriorityQueue((a, b) => dist[b.id] - dist[a.id]);
+	dist[core.id] = 0;
+	q.enq(core);
+	let urbanDistrictCount = 0;
+	while (!q.isEmpty()) {
+		const current: District = q.deq();
+		current.type = 'urban';
+		if (urbanDistrictCount < maxDistricts * 0.25) {
+			current.chaos = INNER_CHAOS;
+			current.blockSize = INNER_BLOCK_SIZE;
+			current.streetWidth = INNER_STREET_WIDTH;
+		} else if (urbanDistrictCount < maxDistricts * 0.5) {
+			current.chaos = MID_CHAOS;
+			current.blockSize = MID_BLOCK_SIZE;
+			current.streetWidth = MID_STREET_WIDTH;
+		} else {
+			current.chaos = OUTER_CHAOS;
+			current.blockSize = OUTER_BLOCK_SIZE;
+			current.streetWidth = OUTER_STREET_WIDTH;
 		}
-	}
-
-	if (urbanRim.includes(district)) {
-		urbanRim.splice(urbanRim.indexOf(district), 1);
+		urbanDistrictCount++;
+		if (urbanDistrictCount >= maxDistricts) {
+			break;
+		}
+		for (const neighbor of current.neighbors) {
+			const d = dist[current.id] + urbanizationDifficulty(current, neighbor);
+			if (!dist.hasOwnProperty(neighbor.id) || d < dist[neighbor.id]) {
+				dist[neighbor.id] = d;
+				q.enq(neighbor);
+			}
+		}
 	}
 }
 
@@ -479,7 +516,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			);
 		});
 		if (!vEdge) {
-			break;
+			continue;
 		}
 		const left = vEdge.left ? getDistrictBySite(vEdge.left.data) : null;
 		const right = vEdge.right ? getDistrictBySite(vEdge.right.data) : null;
@@ -532,54 +569,34 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 	// place roads on Delauney triangulation between villages
 	const mainRoads = createRoads(districts, diagram, intersectionGraph, options);
+	for (const edge of mainRoads) {
+		const voronoiEdge = diagram.edges.filter(Boolean).find((e) => {
+			return geometry.areEdgesEquivalent(
+				{
+					p1: { x: e[0][0], y: e[0][1] },
+					p2: { x: e[1][0], y: e[1][1] },
+				},
+				edge,
+			);
+		});
+		if (!voronoiEdge) {
+			continue;
+		}
+		const left = voronoiEdge.left ? getDistrictBySite(voronoiEdge.left.data) : null;
+		const right = voronoiEdge.right ? getDistrictBySite(voronoiEdge.right.data) : null;
+		if (left && right) {
+			left.roads.push(right);
+			right.roads.push(left);
+		}
+	}
 
-	// determine urban core
-	const core = districts
-		.filter((d) => d.type === 'village')
-		.sort((d1, d2) => d2.calcUrbanScore() - d1.calcUrbanScore())[0];
+	// determine core and urbanize
+	const coreDistrictChoices = districts
+		.filter((d) => d.rivers.length)
+		.filter((d) => d.neighbors.some((n) => n.type === 'water'));
+	const core = pickRandom(coreDistrictChoices, rng);
 	core.isCore = true;
-
-	// grow city along rivers, coasts, and roads
-	const urbanRim: District[] = [];
-	urbanize(core, urbanRim);
-	for (let i = 0; i < NUM_URBAN_DISTRICTS; i++) {
-		if (urbanRim.length) {
-			const newUrbanDistrict = pickWeighted<District>(urbanRim, (d) => d.calcUrbanScore(), rng);
-			urbanize(newUrbanDistrict, urbanRim);
-		}
-	}
-
-	// TODO determine urban district densities
-	core.blockSize = INNER_BLOCK_SIZE;
-	core.chaos = INNER_CHAOS;
-	core.streetWidth = INNER_STREET_WIDTH;
-	for (const district of core.neighbors.filter((d) => d.type === 'urban')) {
-		district.chaos = INNER_CHAOS;
-		district.blockSize = INNER_BLOCK_SIZE;
-		district.streetWidth = INNER_STREET_WIDTH;
-	}
-	for (const district of urbanRim) {
-		district.type = 'urban';
-		district.chaos = OUTER_CHAOS;
-		district.blockSize = OUTER_BLOCK_SIZE;
-		district.streetWidth = OUTER_STREET_WIDTH;
-	}
-
-	// smooth urban districts
-	const districtsToDeurbanize = [];
-	for (const district of districts.filter((d) => d.type === 'urban')) {
-		const numRuralNonRiverNeighbors = district.neighbors
-			.filter((d) => d.type === 'rural' && !district.rivers.includes(d))
-			.length;
-		if (numRuralNonRiverNeighbors > district.neighbors.length * 0.67) {
-			districtsToDeurbanize.push(district);
-		}
-	}
-	for (const district of districtsToDeurbanize) {
-		district.type = 'rural';
-		district.blockSize = 0;
-		district.chaos = 0;
-	}
+	urbanize(core, NUM_URBAN_DISTRICTS);
 
 	let riversAndRoads = riverEdges.concat(mainRoads);
 	// remove duplicates
@@ -623,12 +640,15 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 									numBuildings = 10;
 									minWidth = 10;
 									maxWidth = 20;
-								} else if (district.neighbors.some((d) => d.neighbors.some((n) => n.type === 'urban'))) {
+								} else if (
+									district.neighbors.some((d) => d.neighbors.some((n) => n.type === 'urban')) ||
+									district.neighbors.some((d) => d.type === 'village')
+								) {
 									numBuildings = 5;
 									minWidth = 5;
 									maxWidth = 10;
 								} else {
-									numBuildings = rng() > 0.9 ? 1 : 0;
+									numBuildings = rng() > 0.75 ? 1 : 0;
 									minWidth = 5;
 									maxWidth = 10;
 								}

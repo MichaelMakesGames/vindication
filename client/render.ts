@@ -130,10 +130,10 @@ function renderDistrict(district: District, target: Element): void {
 			for (const polygon of queue) {
 				let inset1 = 2;
 				let inset2 = 2;
-				if (roads.some((p) => geometry.arePointsEquivalent(p, polygon.points[1]))) {
+				if (district.roadEnds.some((p) => geometry.calcDistance(p, polygon.points[1]) < 5)) {
 					inset1 = 5;
 				}
-				if (roads.some((p) => geometry.arePointsEquivalent(p, polygon.points[0]))) {
+				if (district.roadEnds.some((p) => geometry.calcDistance(p, polygon.points[0]) < 5)) {
 					inset2 = 5;
 				}
 				geometry.insetPolygonEdge(polygon, polygon.points[1], inset1);
@@ -160,9 +160,9 @@ function renderDistrict(district: District, target: Element): void {
 					success = success && !!geometry.insetPolygonEdge(copy, point, 10);
 				}
 				if (success) {
-					// d3Target.append('polygon')
-					// 	.attr('class', 'courtyard')
-					// 	.attr('points', polygonToSVGPoints(copy));
+					d3Target.append('polygon')
+						.attr('class', 'courtyard')
+						.attr('points', polygonToSVGPoints(copy));
 				}
 
 				break;

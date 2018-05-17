@@ -29,6 +29,7 @@ export interface DistrictJson {
 	rivers: geometry.Point[];
 	bridges: geometry.Point[];
 	roadEnds: geometry.Point[];
+	roads: geometry.Point[];
 	site: geometry.Point;
 	originalPolygon: geometry.Polygon;
 	polygon: geometry.Polygon;
@@ -52,6 +53,7 @@ export class District {
 		district.rebelControlled = json.rebelControlled;
 		district.riverSites = json.rivers;
 		district.roadEnds = json.roadEnds;
+		district.roadSites = json.roads;
 		district.site = json.site;
 		district.streetWidth = json.streetWidth;
 		return district;
@@ -67,6 +69,7 @@ export class District {
 	public rivers: District[] = []; // neighbors across a river segment
 	public bridges: District[] = []; // neighbors across a river segment with a bridge
 	public roadEnds: geometry.Point[] = []; // points (from this.originalPolygon) that major roads start/end at
+	public roads: District[] = [];
 	public site: geometry.Point | null = null;
 	public originalPolygon: geometry.Polygon;
 	public rebelControlled: boolean = false;
@@ -75,6 +78,7 @@ export class District {
 	private neighborSites: geometry.Point[];
 	private riverSites: geometry.Point[];
 	private bridgeSites: geometry.Point[];
+	private roadSites: geometry.Point[];
 
 	constructor(
 		public id: number,
@@ -100,6 +104,7 @@ export class District {
 			rebelControlled: this.rebelControlled,
 			rivers: this.rivers.map((d) => d.site),
 			roadEnds: this.roadEnds,
+			roads: this.roads.map((d) => d.site),
 			site: this.site,
 			streetWidth: this.streetWidth,
 			type: this.type,
@@ -113,6 +118,7 @@ export class District {
 		this.neighbors = this.neighborSites.map(getDistrict);
 		this.rivers = this.riverSites.map(getDistrict);
 		this.bridges = this.bridgeSites.map(getDistrict);
+		this.roads = this.roadSites.map(getDistrict);
 	}
 
 	public originalPolygonPointToPolygonPoint(point: geometry.Point): geometry.Point { // TODO make this smarter...
