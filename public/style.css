@@ -71,6 +71,13 @@ svg {
   fill: rgb(200, 200, 255);
 }
 
+.ridge {
+  fill: none;
+  stroke: #333;
+  stroke-width: 50;
+  stroke-dasharray: 4,10,3,8,5,12;
+}
+
 .district {
   fill: transparent;
   stroke-width: 0;
@@ -195,7 +202,7 @@ svg {
 .preview-water-district {
   stroke-width: 1;
   stroke: rgb(200, 200, 255);
-  fill: 200(150, 200, 255);
+  fill: rgb(200, 200, 255);
 }
 .preview-rural-district {
   stroke: rgb(50, 100, 0);
@@ -211,8 +218,14 @@ svg {
   fill: none;
 }
 .preview-bridge {
-  stroke: white;
-  stroke-width: 5;
+  stroke: black;
+  stroke-width: 15;
+}
+.preview-ridge {
+  stroke: black;
+  fill: none;
+  stroke-width: 40;
+  stroke-dasharray: 5,25;
 }
 
 .actions-modal-background {

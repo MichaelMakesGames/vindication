@@ -14,6 +14,7 @@ export interface Map {
 	};
 	bridges: Edge[];
 	sprawl: Polygon[];
+	ridges: Point[][];
 }
 
 export interface MapJson {
@@ -29,13 +30,15 @@ export interface MapJson {
 	};
 	bridges: Edge[];
 	sprawl: Polygon[];
+	ridges: Point[][];
 }
 
 export function mapFromJson(mapJson: MapJson): Map {
 	const map = {
 		bridges: mapJson.bridges,
 		coasts: mapJson.coasts,
-		districts: []as District[],
+		districts: [] as District[],
+		ridges: mapJson.ridges,
 		river: mapJson.river,
 		sprawl: mapJson.sprawl,
 		subRiver: mapJson.subRiver,

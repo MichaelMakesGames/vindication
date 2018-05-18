@@ -41,6 +41,11 @@ export function renderPreview(map: MapJson, options: Options): void {
 			.attr('points', `${bridge.p1.x},${bridge.p1.y} ${bridge.p2.x},${bridge.p2.y}`)
 			.attr('class', 'preview-bridge');
 	});
+	map.ridges.forEach((ridge) => {
+		svg.append('polyline')
+			.attr('points', ridge.map((p) => `${p.x},${p.y}`).join(' '))
+			.attr('class', 'preview-ridge');
+	});
 }
 
 export function render(map: Map, options: Options): void {
@@ -56,6 +61,8 @@ export function render(map: Map, options: Options): void {
 	map.coasts.forEach((coast) => {
 		renderCoast(coast);
 	});
+
+	renderRidges(map.ridges);
 
 	const d3Land = d3.select('#land');
 	for (const district of map.districts.filter((d) => d.type !== 'water')) {
@@ -194,6 +201,21 @@ function renderDistrict(district: District, target: Element): void {
 				// do nothing
 			}
 		}
+	}
+}
+
+function renderRidges(ridges: geometry.Point[][]): void {
+	const svg = d3.select('#map > g');
+	const line = d3.line<geometry.Point>()
+		.x((d) => d.x)
+		.y((d) => d.y)
+		.curve(d3.curveCatmullRom);
+	for (const ridge of ridges.map((r) => r.map(geometry.clonePoint))) {
+		geometry.clipCorners({ points: ridge }, 5);
+		ridge.pop();
+		svg.append('path')
+			.attr('d', line(ridge))
+			.classed('ridge', true);
 	}
 }
 

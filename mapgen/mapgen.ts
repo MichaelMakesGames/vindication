@@ -64,6 +64,9 @@ const NOISE_MAX = 0.33;
 const BASE_FLUX = 0.02;
 const EROSION_CYCLES = 2;
 
+const RIDGE_HEIGHT_DELTA = 0.08;
+const RIDGE_MIN_LENGTH = 8;
+
 function pickWeighted<T>(items: T[], weightFunc: (item: T) => number, rng): T {
 	const weights = items.map((item) => weightFunc(item));
 	const totalWeight = weights.reduce((acc, cur) => acc + cur, 0);
@@ -215,12 +218,14 @@ function urbanizationDifficulty(from: District, to: District): number {
 	const canBeUrbanized = to.type !== 'water' && to.type !== 'urban';
 	const crossingWithoutBridge = from.rivers.includes(to) && !from.bridges.includes(to);
 	const crossingWithBridge = from.bridges.includes(to);
+	const blockedByRidge = from.ridges.includes(to);
 	const sharedRiver = from.rivers.some((r) => r.rivers.includes(to));
 	const sharedRoad = from.roads.includes(to);
 	const sharedCoast = from.neighbors.filter((n) => n.type === 'water').some((n) => n.neighbors.includes(to));
 
 	return (
 		(canBeUrbanized ? 1 : Infinity) *
+		(blockedByRidge ? Infinity : 1) *
 		(crossingWithoutBridge ? Infinity : 1) *
 		(crossingWithBridge ? 0.5 : 1) *
 		(sharedRiver ? 0.5 : 1) *
@@ -271,6 +276,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		bridges: [] as Edge[],
 		coasts: [] as Point[][],
 		districts: [] as DistrictJson[],
+		ridges: [] as Point[][],
 		river: {
 			path: [] as Point[],
 			width: 0,
@@ -526,6 +532,66 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		}
 	}
 
+	// determine ridges
+	let ridgeEdges: Edge[] = [];
+	for (
+		const voronoiEdge
+		of diagram.edges
+			.filter(Boolean)
+			.filter((e) => e.left && e.left.data && e.right && e.right.data)
+	) {
+		const left = getDistrictBySite(voronoiEdge.left.data);
+		const right = getDistrictBySite(voronoiEdge.right.data);
+		if (
+			!left.rivers.includes(right) &&
+			left.type !== 'water' &&
+			right.type !== 'water' &&
+			Math.abs(left.height - right.height) > RIDGE_HEIGHT_DELTA
+		) {
+			const edge = {
+				p1: { x: voronoiEdge[0][0], y: voronoiEdge[0][1] },
+				p2: { x: voronoiEdge[1][0], y: voronoiEdge[1][1] },
+			};
+			if (!ridgeEdges.some((ridge) => geometry.areEdgesEquivalent(ridge, edge))) {
+				ridgeEdges.push(edge);
+			}
+		}
+	}
+
+	// remove short ridges
+	const ridges: Point[][] = geometry.joinEdges(ridgeEdges).filter((ridge) => ridge.length > RIDGE_MIN_LENGTH);
+	ridgeEdges = ridges.map((ridge) => {
+		const edges = geometry.getPolygonEdges({ points: ridge });
+		edges.pop();
+		return edges;
+	}).reduce((prev, cur) => {
+		prev.push(...cur);
+		return prev;
+	}, []);
+
+	// add ridges to districts
+	for (const edge of ridgeEdges) {
+		const voronoiEdge = diagram.edges.filter(Boolean).find((e) => {
+			return geometry.areEdgesEquivalent(
+				{
+					p1: { x: e[0][0], y: e[0][1] },
+					p2: { x: e[1][0], y: e[1][1] },
+				},
+				edge,
+			);
+		});
+		if (!voronoiEdge) {
+			continue;
+		}
+		const left = voronoiEdge.left ? getDistrictBySite(voronoiEdge.left.data) : null;
+		const right = voronoiEdge.right ? getDistrictBySite(voronoiEdge.right.data) : null;
+		if (left && right) {
+			left.ridges.push(right);
+			right.ridges.push(left);
+		}
+	}
+	map.ridges = ridges;
+
 	// place villages
 	for (let i = 0; i < NUM_VILLAGES; i++) {
 		const potentialDistricts = districts.filter((d) => d.type === 'rural');
@@ -598,26 +664,30 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	core.isCore = true;
 	urbanize(core, NUM_URBAN_DISTRICTS);
 
-	let riversAndRoads = riverEdges.concat(mainRoads);
+	let riversRidgesRoads = riverEdges.concat(ridgeEdges).concat(mainRoads);
 	// remove duplicates
-	riversAndRoads = riversAndRoads.reduce((acc, cur) => {
+	riversRidgesRoads = riversRidgesRoads.reduce((acc, cur) => {
 		if (acc.every((edge) => !geometry.areEdgesEquivalent(edge, cur))) {
 			acc.push(cur);
 		}
 		return acc;
 	}, []);
-	// make space for roads and rivers
+	// make space for roads, ridges, and rivers
 	for (const district of districts.filter((d) => d.type !== 'water')) {
 		const copy = geometry.clonePolygon(district.polygon);
 		const edges = geometry.getPolygonEdges(copy);
 		edges.forEach((edge, index) => {
-			for (const road of riversAndRoads) {
+			for (const road of riversRidgesRoads) {
 				if (geometry.areEdgesEquivalent(edge, road)) {
 					if (copy.points.indexOf(edge.p1) !== -1) {
 						let inset: number;
+						let isRoad = false;
 						if (riverEdges.includes(road)) {
 							inset = riverWidth / 2 + 3;
+						} else if (ridgeEdges.includes(road)) {
+							inset = 30;
 						} else {
+							isRoad = true;
 							inset = 3;
 						}
 						if (district.type === 'rural') {
@@ -632,7 +702,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 							for (const splicedIndex of result.spliced) {
 								copy.points.splice(splicedIndex, 1);
 							}
-							if (district.type === 'rural') { // add urban sprawl buildings
+							if (isRoad && district.type === 'rural') { // add urban sprawl buildings
 								let numBuildings;
 								let minWidth;
 								let maxWidth;

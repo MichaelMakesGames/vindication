@@ -18,24 +18,25 @@ const URBAN_SCORE_ON_MOUTH = 30;
 const URBAN_SCORE_HAS_BRIDGE = 5;
 
 export interface DistrictJson {
-	id: number;
-	name: string;
-	blocks: geometry.Polygon[];
-	isCore: boolean;
-	chaos: number;
 	blockSize: number;
-	streetWidth: number;
-	neighbors: geometry.Point[];
-	rivers: geometry.Point[];
+	blocks: geometry.Polygon[];
 	bridges: geometry.Point[];
+	chaos: number;
+	height: number;
+	id: number;
+	isCore: boolean;
+	name: string;
+	neighbors: geometry.Point[];
+	originalPolygon: geometry.Polygon;
+	polygon: geometry.Polygon;
+	rebelControlled: boolean;
+	ridges: geometry.Point[];
+	rivers: geometry.Point[];
 	roadEnds: geometry.Point[];
 	roads: geometry.Point[];
 	site: geometry.Point;
-	originalPolygon: geometry.Polygon;
-	polygon: geometry.Polygon;
+	streetWidth: number;
 	type: DistrictType;
-	rebelControlled: boolean;
-	height: number;
 }
 
 export class District {
@@ -51,6 +52,7 @@ export class District {
 		district.neighborSites = json.neighbors;
 		district.originalPolygon = json.originalPolygon;
 		district.rebelControlled = json.rebelControlled;
+		district.ridgeSites = json.ridges;
 		district.riverSites = json.rivers;
 		district.roadEnds = json.roadEnds;
 		district.roadSites = json.roads;
@@ -59,26 +61,28 @@ export class District {
 		return district;
 	}
 
-	public name: string = '';
-	public blocks: geometry.Polygon[] = [];
-	public isCore: boolean = false;
-	public chaos: number = 0;
 	public blockSize: number = 0;
-	public streetWidth: number = 4;
-	public neighbors: District[] = [];
-	public rivers: District[] = []; // neighbors across a river segment
+	public blocks: geometry.Polygon[] = [];
 	public bridges: District[] = []; // neighbors across a river segment with a bridge
+	public chaos: number = 0;
+	public height: number = 0;
+	public isCore: boolean = false;
+	public name: string = '';
+	public neighbors: District[] = [];
+	public originalPolygon: geometry.Polygon;
+	public rebelControlled: boolean = false;
+	public ridges: District[] = [];
+	public rivers: District[] = []; // neighbors across a river segment
 	public roadEnds: geometry.Point[] = []; // points (from this.originalPolygon) that major roads start/end at
 	public roads: District[] = [];
 	public site: geometry.Point | null = null;
-	public originalPolygon: geometry.Polygon;
-	public rebelControlled: boolean = false;
-	public height: number = 0;
+	public streetWidth: number = 4;
 
 	private neighborSites: geometry.Point[];
 	private riverSites: geometry.Point[];
 	private bridgeSites: geometry.Point[];
 	private roadSites: geometry.Point[];
+	private ridgeSites: geometry.Point[];
 
 	constructor(
 		public id: number,
@@ -102,6 +106,7 @@ export class District {
 			originalPolygon: this.originalPolygon,
 			polygon: this.polygon,
 			rebelControlled: this.rebelControlled,
+			ridges: this.ridges.map((d) => d.site),
 			rivers: this.rivers.map((d) => d.site),
 			roadEnds: this.roadEnds,
 			roads: this.roads.map((d) => d.site),
