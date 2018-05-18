@@ -71,11 +71,17 @@ svg {
   fill: rgb(200, 200, 255);
 }
 
+.forest {
+  fill: url(#forestPattern);
+  stroke: #475e41;
+  stroke-width: 2;
+}
+
 .ridge {
   fill: none;
-  stroke: #333;
+  stroke: #888;
   stroke-width: 50;
-  stroke-dasharray: 4,10,3,8,5,12;
+  stroke-dasharray: 3,3;
 }
 
 .district {
@@ -207,7 +213,10 @@ svg {
 .preview-rural-district {
   stroke: rgb(50, 100, 0);
   stroke-width: 1;
-  fill: rgb(220, 255, 200);
+  fill: rgb(240, 255, 200);
+}
+.preview-forest-district {
+  fill: #475e41;
 }
 .preview-river-outline {
   stroke: white;

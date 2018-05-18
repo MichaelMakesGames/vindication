@@ -64,6 +64,16 @@
 
 	<svg id="map" xmlns="http://www.w3.org/2000/svg">
 		<defs>
+			<filter id="forestFilter">
+				<feTurbulence type="turbulence" baseFrequency="0.1" numOctaves="2" result="turbulence"></feTurbulence>
+				<feDisplacementMap in2="turbulence" in="SourceGraphic" scale="25" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+			<feOffset in="displaced" dx="-5" dy="-5"></feOffset></filter>
+		
+			<pattern id="forestPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+				<rect x="0" y="0" width="10" height="10" fill="#6b8a62"></rect>
+				<circle cx="5" cy="5" r="4" fill="#475e41"></circle>
+			</pattern>
+
 			<pattern id="building" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
 				<line x1="4" y1="0" x2="0" ,="" y2="0" stroke-width="6" stroke-linecap="butt" stroke="#444">
 				</line>
@@ -94,6 +104,7 @@
 			<g id="water"></g>
 			<g id="coast"></g>
 			<g id="land"></g>
+			<g id="forest" filter="url(#forestFilter)"></g>
 			<g id="rural"></g>
 			<g id="urban"></g>
 			<g id="river"></g>

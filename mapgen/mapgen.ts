@@ -67,6 +67,8 @@ const EROSION_CYCLES = 2;
 const RIDGE_HEIGHT_DELTA = 0.08;
 const RIDGE_MIN_LENGTH = 8;
 
+const FOREST_ALTITUDE = 0.33;
+
 function pickWeighted<T>(items: T[], weightFunc: (item: T) => number, rng): T {
 	const weights = items.map((item) => weightFunc(item));
 	const totalWeight = weights.reduce((acc, cur) => acc + cur, 0);
@@ -457,6 +459,13 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		}
 	}
 
+	// plant forests
+	for (const district of districts) {
+		if (district.height > FOREST_ALTITUDE) {
+			district.type = 'forest';
+		}
+	}
+
 	// determine coasts
 	const coastEdges: Edge[] = [];
 	(() => {
@@ -663,6 +672,12 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	const core = pickRandom(coreDistrictChoices, rng);
 	core.isCore = true;
 	urbanize(core, NUM_URBAN_DISTRICTS);
+
+	// remove forests next to city and village
+	districts
+		.filter((d) => d.type === 'forest')
+		.filter((d) => d.neighbors.some((n) => n.type === 'urban' || n.type === 'village'))
+		.forEach((d) => d.type = 'rural');
 
 	let riversRidgesRoads = riverEdges.concat(ridgeEdges).concat(mainRoads);
 	// remove duplicates

@@ -1,7 +1,7 @@
 import * as d3 from 'd3';
 import * as geometry from './geometry';
 
-type DistrictType = 'rural' | 'urban' | 'plaza' | 'water' | 'village';
+type DistrictType = 'rural' | 'urban' | 'plaza' | 'water' | 'village' | 'forest';
 
 const VILLAGE_SCORE_BASE = 1;
 const VILLAGE_SCORE_ON_COAST = 5;

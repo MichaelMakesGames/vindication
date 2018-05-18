@@ -15,6 +15,7 @@ export function renderPreview(map: MapJson, options: Options): void {
 	svg.attr('viewBox', `100 100 ${options.width} ${options.height}`);
 
 	const districtTypeToClassName = {
+		forest: 'preview-forest-district',
 		plaza: 'preview-urban-district',
 		rural: 'preview-rural-district',
 		urban: 'preview-urban-district',
@@ -26,7 +27,7 @@ export function renderPreview(map: MapJson, options: Options): void {
 		.range([d3.rgb(0, 0, 127), d3.rgb(255, 255, 255), d3.rgb(0, 127, 0), d3.rgb(255, 255, 255)]);
 	svg.selectAll('polygon').data(map.districts).enter().append('polygon')
 		.attr('points', (d) => polygonToSVGPoints(d.originalPolygon))
-		.style('fill', (d) => d.type === 'rural' ? colorScale(d.height).toString() : '')
+		.style('fill', (d) => d.type === 'rural' || d.type === 'forest' ? colorScale(d.height).toString() : '')
 		.attr('class', (d) => districtTypeToClassName[d.type]);
 	svg.append('polyline')
 		.attr('points', polygonToSVGPoints({ points: map.river.path }))
@@ -95,6 +96,7 @@ export function render(map: Map, options: Options): void {
 	}
 
 	const districtTypeToRenderTarget = {
+		forest: document.getElementById('forest'),
 		plaza: document.getElementById('urban'),
 		rural: document.getElementById('rural'),
 		urban: document.getElementById('urban'),
@@ -179,7 +181,7 @@ function renderDistrict(district: District, target: Element): void {
 				geometry.clipCorners(polygon, 6);
 				const selection = d3Target.append('path')
 					.datum(polygon.points)
-					.attr('class', 'field' + Math.floor(Math.random() * 3 + 1))
+					.attr('class', 'field1') // + Math.floor(Math.random() * 3 + 1))
 					.attr('d', fieldLine);
 				break;
 			}
@@ -187,8 +189,13 @@ function renderDistrict(district: District, target: Element): void {
 			case 'water': {
 				d3Target.append('polygon')
 					.attr('class', 'water')
-					.style('animation-duration', Math.floor(Math.random() * 8 + 3) + 's')
-					.style('animation-delay', Math.floor(Math.random() * 1000) + 'ms')
+					.attr('points', polygonToSVGPoints(polygon));
+				break;
+			}
+
+			case 'forest': {
+				d3Target.append('polygon')
+					.attr('class', 'forest')
 					.attr('points', polygonToSVGPoints(polygon));
 				break;
 			}
