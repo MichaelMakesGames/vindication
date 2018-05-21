@@ -105,6 +105,9 @@ function findPath(
 	const q = new PriorityQueue((a, b) => dist[nodeToKey(b)] - dist[nodeToKey(a)]);
 	dist[nodeToKey(start)] = 0;
 	q.enq(start);
+	if (!graph[nodeToKey(start)]) {
+		return;
+	}
 	while (!q.isEmpty()) {
 		let current: Point = q.deq();
 		if (geometry.arePointsEquivalent(current, target)) {
@@ -151,10 +154,14 @@ function connectDistricts(
 	}
 
 	const path: Point[] = findPath(graph, distance, startPoint, endPoint);
-	const roads = geometry.getPolygonEdges({ points: path });
-	roads.pop();
+	if (path) {
+		const roads = geometry.getPolygonEdges({ points: path });
+		roads.pop();
 
-	return roads;
+		return roads;
+	} else {
+		return [];
+	}
 }
 
 function createRoads(
@@ -339,21 +346,6 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		right.neighbors.push(left);
 	}
 
-	const riverSites: number[][] = [];
-	const intersectionGraph: { [point: string]: Point[] } = {};
-	for (const edge of diagram.edges.filter(Boolean)) {
-		intersectionGraph[edge[0].toString()] = intersectionGraph[edge[0].toString()] || [];
-		intersectionGraph[edge[0].toString()].push({ x: edge[1][0], y: edge[1][1] });
-		if (!riverSites.some((site) => site[0] === edge[0][0] && site[1] === edge[0][1])) {
-			riverSites.push(edge[0]);
-		}
-		intersectionGraph[edge[1].toString()] = intersectionGraph[edge[1].toString()] || [];
-		intersectionGraph[edge[1].toString()].push({ x: edge[0][0], y: edge[0][1] });
-		if (!riverSites.some((site) => site[0] === edge[1][0] && site[1] === edge[1][1])) {
-			riverSites.push(edge[1]);
-		}
-	}
-
 	function getSitePolygon(site) {
 		return getCellPolygon(diagram.cells[site.index]);
 	}
@@ -384,6 +376,16 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		const yHeightFactor = yHeightScale(y);
 		const xHeightFactor = xHeightScale(x);
 		return (yHeightFactor + xHeightFactor) / 2 + randomHeightFactor;
+	}
+
+	const riverSites: number[][] = [];
+	for (const edge of diagram.edges.filter(Boolean)) {
+		if (!riverSites.some((site) => site[0] === edge[0][0] && site[1] === edge[0][1])) {
+			riverSites.push(edge[0]);
+		}
+		if (!riverSites.some((site) => site[0] === edge[1][0] && site[1] === edge[1][1])) {
+			riverSites.push(edge[1]);
+		}
 	}
 
 	const getNeighborsCache: {[key: string]: number[][]} = {};
@@ -639,6 +641,25 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 				p2: { x: point.x - dx, y: point.y - dy },
 			};
 			map.bridges.push(bridgeEdge);
+		}
+	}
+
+	const intersectionGraph: { [point: string]: Point[] } = {};
+	for (const edge of diagram.edges.filter((e) => e && e.left && e.left.data && e.right && e.right.data)) {
+		const leftDistrict = getDistrictBySite(edge.left.data);
+		const rightDistrict = getDistrictBySite(edge.right.data);
+		const isCoast = leftDistrict.type === 'water' || rightDistrict.type === 'water';
+		const isRiver = leftDistrict.rivers.includes(rightDistrict);
+		const isRidge = leftDistrict.ridges.includes(rightDistrict);
+		if (!(isCoast || isRiver || isRidge )) {
+			const leftKey: string = edge[0].slice(0, 2).toString();
+			const leftPoint: Point = { x: edge[0][0], y: edge[0][1] };
+			const rightKey: string = edge[1].slice(0, 2).toString();
+			const rightPoint: Point = { x: edge[1][0], y: edge[1][1] };
+			intersectionGraph[leftKey] = intersectionGraph[leftKey] || [];
+			intersectionGraph[leftKey].push(rightPoint);
+			intersectionGraph[rightKey] = intersectionGraph[rightKey] || [];
+			intersectionGraph[rightKey].push(leftPoint);
 		}
 	}
 
