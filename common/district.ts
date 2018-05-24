@@ -201,17 +201,17 @@ export class District {
 			slope *= (1 + Math.random() * this.chaos - this.chaos / 2);
 			if (slope === Infinity || slope === -Infinity) {
 				console.warn('infinite slope');
-				slope = 999999999;
+				slope = Infinity;
 			}
 
 			const testEdge: geometry.Edge = {
 				p1: {
-					x: 1000000,
-					y: slope * (1000000 - splitPoint.x) + splitPoint.y,
+					x: slope === Infinity ? splitPoint.x : 1000000,
+					y: slope === Infinity ? 1000000 : slope * (1000000 - splitPoint.x) + splitPoint.y,
 				},
 				p2: {
-					x: -1000000,
-					y: slope * (-1000000 - splitPoint.x) + splitPoint.y,
+					x: slope === Infinity ? splitPoint.x : -1000000,
+					y: slope === Infinity ? -1000000 : slope * (-1000000 - splitPoint.x) + splitPoint.y,
 				},
 			};
 

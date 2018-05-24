@@ -1,3 +1,5 @@
+import * as lineIntersect from 'line-intersect';
+
 export interface Point {
 	x: number;
 	y: number;
@@ -272,27 +274,47 @@ export function createRectFromEdge(edge: Edge, width: number, towards: Point): P
  * @param edge2
  */
 export function calcLineIntersection(edge1: Edge, edge2: Edge): Point {
-	const x1 = edge1.p1.x;
-	const y1 = edge1.p1.y;
-	const x2 = edge1.p2.x;
-	const y2 = edge1.p2.y;
-	const x3 = edge2.p1.x;
-	const y3 = edge2.p1.y;
-	const x4 = edge2.p2.x;
-	const y4 = edge2.p2.y;
+	const TRILLION = 1000000000000;
 
-	let ua = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
-	let ub = ua;
-	const denom = ua;
-	if (denom === 0) {
-		return null;
+	edge1 = cloneEdge(edge1);
+	const slope1 = calcSlope(edge1);
+	if (!isFinite(slope1)) {
+		edge1.p1.y = TRILLION;
+		edge1.p2.y = -TRILLION;
+	} else {
+		edge1.p1.x += TRILLION;
+		edge1.p1.y += slope1 * TRILLION;
+		edge1.p2.x -= TRILLION;
+		edge1.p2.y -= slope1 * TRILLION;
 	}
-	ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
-	ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
-	return {
-		x: x1 + ua * (x2 - x1),
-		y: y1 + ua * (y2 - y1),
-	};
+
+	edge2 = cloneEdge(edge2);
+	const slope2 = calcSlope(edge2);
+	if (!isFinite(slope2)) {
+		edge2.p1.y = TRILLION;
+		edge2.p2.y = -TRILLION;
+	} else {
+		edge2.p1.x += TRILLION;
+		edge2.p1.y += slope2 * TRILLION;
+		edge2.p2.x -= TRILLION;
+		edge2.p2.y -= slope2 * TRILLION;
+	}
+
+	const result: { type: string, point: Point } = lineIntersect.checkIntersection(
+		edge1.p1.x,
+		edge1.p1.y,
+		edge1.p2.x,
+		edge1.p2.y,
+		edge2.p1.x,
+		edge2.p1.y,
+		edge2.p2.x,
+		edge2.p2.y,
+	);
+	if (result.type !== 'intersecting') {
+		return null;
+	} else {
+		return result.point;
+	}
 }
 
 export function isIntersectionInEdge(intersection: Point, edge: Edge): boolean {
@@ -304,17 +326,6 @@ export function isIntersectionInEdge(intersection: Point, edge: Edge): boolean {
 	const xMax = Math.max(edge.p1.x, edge.p2.x) + 0.001;
 
 	return intersection.x > xMin && intersection.x < xMax;
-
-	// return (
-	// 	(
-	// 		intersection.x <= Math.max(edge.p1.x, edge.p2.x) &&
-	// 		intersection.x >= Math.min(edge.p1.x, edge.p2.x)
-	// 	) ||
-	// 	(
-	// 		Math.abs(intersection.x - edge.p1.x) < 0.001 ||
-	// 		Math.abs(intersection.x - edge.p2.x) < 0.001
-	// 	)
-	// );
 }
 
 export function getPolygonEdges(polygon: Polygon): Edge[] {
@@ -328,14 +339,10 @@ export function getPolygonEdges(polygon: Polygon): Edge[] {
 }
 
 export function doesLineIntersectPolygon(testEdge: Edge, polygon: Polygon): boolean {
-	const edges: Edge[] = getPolygonEdges(polygon);
-	for (const edge of edges) {
-		const intersection = calcLineIntersection(edge, testEdge);
-		if (intersection && isIntersectionInEdge(intersection, edge)) {
-			return true;
-		}
-	}
-	return false;
+	return getPolygonEdges(polygon).some((e) => {
+		const intersection = calcLineIntersection(testEdge, e);
+		return intersection && isIntersectionInEdge(intersection, e);
+	});
 }
 
 export function doesSegmentIntersectPolygon(segment: Edge, polygon: Polygon): Point | null {
@@ -386,8 +393,7 @@ export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: num
 	});
 	const edge = edges[polygon.points.indexOf(startPoint)];
 
-	const slope = calcSlope(edge);
-	const perpendicularSlope = -1 / slope;
+	const perpendicularSlope = calcPerpendicularSlope(edge);
 	const angle = Math.atan(perpendicularSlope);
 	const dx = inset * Math.cos(angle);
 	const dy = inset * Math.sin(angle);
@@ -529,9 +535,7 @@ export function slicePolygon(polygon: Polygon, testEdge: Edge, inset: number = 0
 	}
 
 	const newPolygon1: Polygon = { points: newPolygon1Edges.map((edge) => edge.p1) };
-	// newPolygon1Edges.cssClass = 'building';
 	const newPolygon2: Polygon = { points: newPolygon2Edges.map((edge) => edge.p1) };
-	// newPolygon2Edges.cssClass = 'building';
 	insetPolygonEdge(newPolygon1, intersection, inset / 2);
 	insetPolygonEdge(newPolygon2, splitPoint, inset / 2);
 	return [newPolygon1, newPolygon2];
@@ -612,15 +616,43 @@ export function clipCorners(polygon: Polygon, clip: number): void {
 	}
 }
 
-export function arePointsEquivalent(p1: Point, p2: Point) {
-	return p1.x === p2.x && p1.y === p2.y;
+export function arePointsEquivalent(p1: Point, p2: Point, precision: number = 0) {
+	if (precision) {
+		return (
+			(Math.abs(p1.x - p2.x) < precision) &&
+			(Math.abs(p1.y - p2.y) < precision)
+		);
+	} else {
+		return p1.x === p2.x && p1.y === p2.y;
+	}
 }
 
-export function areEdgesEquivalent(e1: Edge, e2: Edge) {
+export function areEdgesEquivalent(e1: Edge, e2: Edge, precision: number = 0) {
 	return (
-		(arePointsEquivalent(e1.p1, e2.p1) && arePointsEquivalent(e1.p2, e2.p2)) ||
-		(arePointsEquivalent(e1.p1, e2.p2) && arePointsEquivalent(e1.p2, e2.p1))
+		(arePointsEquivalent(e1.p1, e2.p1, precision) && arePointsEquivalent(e1.p2, e2.p2, precision)) ||
+		(arePointsEquivalent(e1.p1, e2.p2, precision) && arePointsEquivalent(e1.p2, e2.p1, precision))
 	);
+}
+
+export function arePolygonsEquivalent(p1: Polygon, p2: Polygon, precision: number = 0) {
+	if (p1.points.length !== p2.points.length) {
+		return false;
+	}
+
+	const p2StartingIndex = p2.points.findIndex((p) => arePointsEquivalent(p, p1.points[0], precision));
+
+	if (p2StartingIndex === -1) {
+		return false;
+	}
+
+	for (let p1Index = 0; p1Index < p1.points.length; p1Index++) {
+		const p2Index = (p2StartingIndex + p1Index) % p2.points.length;
+		if (!arePointsEquivalent(p1.points[p1Index], p2.points[p2Index], precision)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 export function findCommonEdge(p1: Polygon, p2: Polygon): Edge | null {
