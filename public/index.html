@@ -5,114 +5,128 @@
 </head>
 
 <body>
+	<div class="window window--padded" id="lobby-window">
+		<h1>Games</h1>
+		<ul id="games" class="game-list"></ul>
+		<p id="no-games-message" style="display: none">No active games.</p>
+		<button id="new-game-button" style="display: block">New Game</button>
+	</div>
 
-	<ul class="topbar">
-		<li class="topbar__item">Role: <span id="role"></span></li>
-		<li class="topbar__item">Turn: <span id="turn"></span></li>
-		<li class="topbar__item">Rebel Controlled: <span id='rebel-controlled'></span>/15</li>
-		<li class="topbar__item">Victor: <span id='victor'></span></li>
-		<button id="submit-turn">Submit Turn</button>
-	</ul>
-
-	<div class="infobox infobox--log" id="log"></div>
-
-	<section class="infobox infobox--district" id="districtBox" style="display: none;">
-		<div class="district-box__header">
-			<hgroup>
-				<h3 class="district-box__name" id="districtName">Disctrict name</h3>
-				<h4 class="district-box__type" id="districtType">District type</h4>
-			</hgroup>
-			<button class="district-box__close-button" id="districtClose">X</button>
-		</div>
-		<figure class="district-box__art">
-			<img id="districtImage" alt="District art"/>
-		</figure>
-		<div class="district-box__section">
-			<h4 class="district-box__section__header">Pops</h4>
-			<div class="district-box__pops" id="districtPops"></div>
-			<p id="districtNoPops">There are no pops in this district.</p>
-		</div>
-		<div class="district-box__section">
-			<h4 class="district-box__section__header">Active Effects</h4>
-			<ul class="district-box__effects" id="districtEffects"></ul>
-			<p id="districtNoEffects">There are no active effects for this district.</p>
-		</div>
-		<div class="dsitrict-box__section">
-			<h4 class="district-box__section__header">Actions</h4>
-			<ul class="district-box__actions" id="districtActions"></ul>
-			<p id="districtNoActions">There are no available actions for this district.</p>
-		</div>
-	</section>
-
-	<div class="new-game-dialog" id="new-game-dialog">
+	<div class="window window--padded" id="new-game-window">
+		<label>Game name: <input type="string" id="name-input"/></label>
 		<div>
 			<label>Seed: <input type="number" id="seed-input"/></label>
 			<button id="preview-map">Preview Map</button>
 			<button id="random-seed">Random</button>
 		</div>
-		<div><label>Role: <select id="role-input"></select></label></div>
+		<div><label>Role: <select id="role-input">
+			<option value="rebel">Rebel</option>
+			<option value="authority">Authority</option>
+		</select></label></div>
 		<button id="start-game">Start Game</button>
 		<button id="join-game" style="display: none;">Join Game</button>
 		<div><svg id="map-preview" style="width: 400px; height: 400px;"></svg></div>
 	</div>
 
-	<div class="tooltip" id="tooltip" style="display: none;">
-		<h3 class="tooltip-title" id="tooltipDistrictName"></h3>
-		<ul class="tooltip-actions" id="tooltipActions">
+	<div class="window" id="game-window">
+		<ul class="topbar">
+			<li class="topbar__item">Game: <span id="name"></span></li>
+			<li class="topbar__item">Role: <span id="role"></span></li>
+			<li class="topbar__item">Turn: <span id="turn"></span></li>
+			<li class="topbar__item">Rebel Controlled: <span id='rebel-controlled'></span>/15</li>
+			<li class="topbar__item">Victor: <span id='victor'></span></li>
+			<button id="submit-turn">Submit Turn</button>
 		</ul>
+
+		<div class="infobox infobox--log" id="log"></div>
+
+		<section class="infobox infobox--district" id="districtBox" style="display: none;">
+			<div class="district-box__header">
+				<hgroup>
+					<h3 class="district-box__name" id="districtName">Disctrict name</h3>
+					<h4 class="district-box__type" id="districtType">District type</h4>
+				</hgroup>
+				<button class="district-box__close-button" id="districtClose">X</button>
+			</div>
+			<figure class="district-box__art">
+				<img id="districtImage" alt="District art"/>
+			</figure>
+			<div class="district-box__section">
+				<h4 class="district-box__section__header">Pops</h4>
+				<div class="district-box__pops" id="districtPops"></div>
+				<p id="districtNoPops">There are no pops in this district.</p>
+			</div>
+			<div class="district-box__section">
+				<h4 class="district-box__section__header">Active Effects</h4>
+				<ul class="district-box__effects" id="districtEffects"></ul>
+				<p id="districtNoEffects">There are no active effects for this district.</p>
+			</div>
+			<div class="dsitrict-box__section">
+				<h4 class="district-box__section__header">Actions</h4>
+				<ul class="district-box__actions" id="districtActions"></ul>
+				<p id="districtNoActions">There are no available actions for this district.</p>
+			</div>
+		</section>
+
+		<div class="tooltip" id="tooltip" style="display: none;">
+			<h3 class="tooltip-title" id="tooltipDistrictName"></h3>
+			<ul class="tooltip-actions" id="tooltipActions">
+			</ul>
+		</div>
+
+		<svg id="map" xmlns="http://www.w3.org/2000/svg">
+			<defs>
+				<filter id="forestFilter">
+					<feTurbulence type="turbulence" baseFrequency="0.1" numOctaves="2" result="turbulence"></feTurbulence>
+					<feDisplacementMap in2="turbulence" in="SourceGraphic" scale="25" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+				<feOffset in="displaced" dx="-5" dy="-5"></feOffset></filter>
+			
+				<pattern id="forestPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+					<rect x="0" y="0" width="10" height="10" fill="#6b8a62"></rect>
+					<circle cx="5" cy="5" r="4" fill="#475e41"></circle>
+				</pattern>
+
+				<pattern id="building" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+					<line x1="4" y1="0" x2="0" ,="" y2="0" stroke-width="6" stroke-linecap="butt" stroke="#444">
+					</line>
+				</pattern>
+
+				<pattern id="field1" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)" patternFill="rgb(200,255,200)">
+					<rect fill="rgb(240, 255, 200)" x="0" y="0" width="5" height="5"></rect>
+					<line x1="1" y1="1" x2="3" y2="3" stroke-width="0.5" stroke="rgb(50, 100, 0)"></line>
+				</pattern>
+
+				<pattern id="field2" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
+					<rect fill="rgb(220, 255, 200)" x="0" y="0" width="5" height="5"></rect>
+					<line x1="1" y1="1" x2="3" y2="3" stroke-width="0.5" stroke="rgb(50, 100, 0)"></line>
+				</pattern>
+
+				<pattern id="field3" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+					<rect fill="rgb(200, 255, 200)" x="0" y="0" width="4" height="4"></rect>
+					<circle cx="2" cy="2" r="0.5" fill="rgb(50, 100, 0)"></circle>
+				</pattern>
+
+				<pattern id="avenue" x="0" y="0" width="10" height="5" patternUnits="userSpaceOnUse">
+					<circle fill="black" r="1" cx="2" cy="2.5"></circle>
+					<circle fill="black" r="1" cx="8" cy="2.5"></circle>
+				</pattern>
+			</defs>
+
+			<g>
+				<g id="water"></g>
+				<g id="coast"></g>
+				<g id="land"></g>
+				<g id="forest" filter="url(#forestFilter)"></g>
+				<g id="rural"></g>
+				<g id="urban"></g>
+				<g id="river"></g>
+				<g id="overlay"></g>
+				<g id="centers"></g>
+			</g>
+
+		</svg>
 	</div>
 
-	<svg id="map" xmlns="http://www.w3.org/2000/svg">
-		<defs>
-			<filter id="forestFilter">
-				<feTurbulence type="turbulence" baseFrequency="0.1" numOctaves="2" result="turbulence"></feTurbulence>
-				<feDisplacementMap in2="turbulence" in="SourceGraphic" scale="25" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
-			<feOffset in="displaced" dx="-5" dy="-5"></feOffset></filter>
-		
-			<pattern id="forestPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-				<rect x="0" y="0" width="10" height="10" fill="#6b8a62"></rect>
-				<circle cx="5" cy="5" r="4" fill="#475e41"></circle>
-			</pattern>
-
-			<pattern id="building" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
-				<line x1="4" y1="0" x2="0" ,="" y2="0" stroke-width="6" stroke-linecap="butt" stroke="#444">
-				</line>
-			</pattern>
-
-			<pattern id="field1" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)" patternFill="rgb(200,255,200)">
-				<rect fill="rgb(240, 255, 200)" x="0" y="0" width="5" height="5"></rect>
-				<line x1="1" y1="1" x2="3" y2="3" stroke-width="0.5" stroke="rgb(50, 100, 0)"></line>
-			</pattern>
-
-			<pattern id="field2" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
-				<rect fill="rgb(220, 255, 200)" x="0" y="0" width="5" height="5"></rect>
-				<line x1="1" y1="1" x2="3" y2="3" stroke-width="0.5" stroke="rgb(50, 100, 0)"></line>
-			</pattern>
-
-			<pattern id="field3" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-				<rect fill="rgb(200, 255, 200)" x="0" y="0" width="4" height="4"></rect>
-				<circle cx="2" cy="2" r="0.5" fill="rgb(50, 100, 0)"></circle>
-			</pattern>
-
-			<pattern id="avenue" x="0" y="0" width="10" height="5" patternUnits="userSpaceOnUse">
-				<circle fill="black" r="1" cx="2" cy="2.5"></circle>
-				<circle fill="black" r="1" cx="8" cy="2.5"></circle>
-			</pattern>
-		</defs>
-
-		<g>
-			<g id="water"></g>
-			<g id="coast"></g>
-			<g id="land"></g>
-			<g id="forest" filter="url(#forestFilter)"></g>
-			<g id="rural"></g>
-			<g id="urban"></g>
-			<g id="river"></g>
-			<g id="overlay"></g>
-			<g id="centers"></g>
-		</g>
-
-	</svg>
 	<script src="./bundle.js"></script>
 </body>
 

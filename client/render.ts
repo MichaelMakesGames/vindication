@@ -9,10 +9,10 @@ export function polygonToSVGPoints(polygon: geometry.Polygon): string {
 	return polygon.points.map((p) => `${p.x},${p.y}`).join(' ');
 }
 
-export function renderPreview(map: MapJson, options: Options): void {
+export function renderPreview(map: MapJson): void {
 	const svg = d3.select('#map-preview');
 	svg.selectAll('*').remove();
-	svg.attr('viewBox', `100 100 ${options.width} ${options.height}`);
+	svg.attr('viewBox', `0 0 4096 4096`);
 
 	const districtTypeToClassName = {
 		forest: 'preview-forest-district',
@@ -49,15 +49,15 @@ export function renderPreview(map: MapJson, options: Options): void {
 	});
 }
 
-export function render(map: Map, options: Options): void {
+export function render(map: Map): void {
 	let svg = d3.select('#map');
 	svg
-		.attr('width', options.width)
+		.attr('width', 4096)
 		// .attr('height', 'auto')
-		.attr('viewBox', `100 100 ${options.width - 200} ${options.height - 200}`);
+		.attr('viewBox', `256 256 3584 3584`);
 	svg = svg.select('g');
 
-	renderBorder(options);
+	renderBorder();
 
 	map.coasts.forEach((coast) => {
 		renderCoast(coast);
@@ -348,15 +348,15 @@ function renderRiver(path: geometry.Point[], width: number = 40): void {
 	}
 }
 
-function renderBorder(options: Options): void {
+function renderBorder(): void {
 	d3.select('#map > defs')
 		.append('clipPath')
 		.attr('id', 'borderClip')
 		.append('rect')
-		.attr('x', 100)
-		.attr('y', 100)
-		.attr('width', options.width - 200)
-		.attr('height', options.height - 200);
+		.attr('x', 256)
+		.attr('y', 256)
+		.attr('width', 4096 - 512)
+		.attr('height', 4096 - 512);
 
 	d3.select('#map > g')
 		.attr('clip-path', 'url(#borderClip)');

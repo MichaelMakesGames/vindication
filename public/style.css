@@ -140,16 +140,39 @@ svg {
   height: calc(100vh - 80px);
 }
 
-.new-game-dialog {
+.window {
   position: fixed;
-  right: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.window--padded {
   padding: 20px;
-  box-sizing: border-box;
-  width: 100vw;
-  height: 100vh;
-  background: beige;
-  border: black 5px solid;
-  overflow-y: auto;
+}
+
+.game-list {
+  margin: 0;
+  padding: 0;
+}
+
+.game-list__item {
+  display: flex;
+  width: 100%;
+  max-width: 500px;
+  padding: 5px;
+}
+
+.game-list__item:nth-child(even) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.game-list__name {
+  flex-grow: 1;
+}
+
+.game-list__join-button {
+  padding-left: 10px;
 }
 
 .tooltip {

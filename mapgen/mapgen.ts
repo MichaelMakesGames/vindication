@@ -54,6 +54,8 @@ const OUTER_CHAOS = 0;
 const OUTER_BLOCK_SIZE = 1200;
 const OUTER_STREET_WIDTH = 4;
 
+const WIDTH = 4096;
+const HEIGHT = 4096;
 const SITE_GRID_SIZE = 128;
 
 const NOISE_FREQUENCY = 0.001;
@@ -175,7 +177,7 @@ function createRoads(
 		.y((d) => d.y)
 		.extent([
 			[SITE_GRID_SIZE * -2, SITE_GRID_SIZE * -2],
-			[options.width + SITE_GRID_SIZE * 2, options.height + SITE_GRID_SIZE * 2],
+			[WIDTH + SITE_GRID_SIZE * 2, HEIGHT + SITE_GRID_SIZE * 2],
 		]);
 	const villages = districts.filter((d) => d.type === 'village');
 	const villageDiagram = villageVoronoi(villages.map((v) => v.site));
@@ -298,11 +300,11 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	};
 
 	const voronoiDiagram = voronoi<Point>().x((d) => d.x).y((d) => d.y);
-	voronoiDiagram.extent([[0, 0], [options.width, options.height]]);
+	voronoiDiagram.extent([[0, 0], [WIDTH, HEIGHT]]);
 
 	const points: Point[] = [];
-	for (let i = 0; i < options.width; i += SITE_GRID_SIZE) {
-		for (let j = 0; j < options.height; j += SITE_GRID_SIZE) {
+	for (let i = 0; i < WIDTH; i += SITE_GRID_SIZE) {
+		for (let j = 0; j < HEIGHT; j += SITE_GRID_SIZE) {
 			let done = false;
 			while (!done) {
 				const point: Point = {
@@ -365,10 +367,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		random: rng,
 	});
 	const yHeightScale = scaleLinear()
-		.domain([0, options.height])
+		.domain([0, HEIGHT])
 		.range([1, -1]);
 	const xHeightScale = scaleLinear()
-		.domain([0, options.width / 3, options.width / 2, options.width * 2 / 3, options.width])
+		.domain([0, WIDTH / 3, WIDTH / 2, WIDTH * 2 / 3, WIDTH])
 		.range([0.5, 0.5, -0, 0.5, 0.5]);
 
 	function calcHeight(x, y): number {
@@ -418,7 +420,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 	function isDepression(site: number[]) {
 		return (
-			site[1] !== options.height &&
+			site[1] !== HEIGHT &&
 			getNeighbors(site).every((n) => n[2] >= site[2])
 		);
 	}

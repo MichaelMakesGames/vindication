@@ -15,26 +15,49 @@ const socket = io();
 
 const REBEL = 'rebel';
 const AUTHORITY = 'authority';
+const gameList = document.getElementById('games');
+const noGamesMessage = document.getElementById('no-games-message');
+const newGameButton = document.getElementById('new-game-button');
 const startGameButton = document.getElementById('start-game');
 const joinGameButton = document.getElementById('join-game');
 const previewMapButton = document.getElementById('preview-map');
 const randomSeedButton = document.getElementById('random-seed');
+const nameInput: HTMLInputElement = document.getElementById('name-input') as HTMLInputElement;
 const seedInput: HTMLInputElement = document.getElementById('seed-input') as HTMLInputElement;
 const roleInput: HTMLSelectElement = document.getElementById('role-input') as HTMLSelectElement;
-const newGameDialog: HTMLElement = document.getElementById('new-game-dialog');
+
+const lobbyWindow: HTMLElement = document.getElementById('lobby-window');
+const newGameWindow: HTMLElement = document.getElementById('new-game-window');
+const gameWindow: HTMLElement = document.getElementById('game-window');
+
+function openWindow(window: HTMLElement): void {
+	lobbyWindow.style.display = 'none';
+	newGameWindow.style.display = 'none';
+	gameWindow.style.display = 'none';
+
+	window.style.display = 'block';
+}
+
+openWindow(lobbyWindow);
+
+function onNewGameClick() {
+	openWindow(newGameWindow);
+}
+newGameButton.addEventListener('click', onNewGameClick);
 
 function onStartGameClick() {
-	const seed = seedInput.value;
+	const name = nameInput.value;
+	const seed = parseFloat(seedInput.value);
 	const role = roleInput.value;
-	socket.emit('start-game', {seed, role});
+	socket.emit('new-game', name, seed, role);
 }
 startGameButton.addEventListener('click', onStartGameClick);
 
 function onJoinGameClick() {
-	const role = roleInput.value;
-	socket.emit('join-game', role);
+	const id = parseFloat(this.dataset.gameId);
+	const role = this.dataset.role;
+	socket.emit('join-game', id, role);
 }
-joinGameButton.addEventListener('click', onJoinGameClick);
 
 function onRandomSeedClick() {
 	seedInput.value = Math.floor(Math.random() * 1000000).toString();
@@ -54,6 +77,7 @@ socket.on('preview-map', renderPreview);
 const clientState: {
 	districtHoverEnabled: boolean,
 	districtMenuOpen: boolean,
+	gameId: number,
 	hoveredDistrict: District,
 	map: Map,
 	overlay: d3.Selection<SVGPolygonElement, District, SVGGElement, {}>,
@@ -64,6 +88,7 @@ const clientState: {
 } = {
 	districtHoverEnabled: false,
 	districtMenuOpen: false,
+	gameId: null,
 	hoveredDistrict: null,
 	map: null,
 	overlay: null,
@@ -75,22 +100,62 @@ const clientState: {
 
 let gameState: GameState = null;
 
-function socketOnRoles(roles: string[]) {
-	roleInput.innerHTML = roles.map((role) => `<option value="${role}">${role}</option>`).join('');
-}
-socket.on('roles', socketOnRoles);
+function socketOnGames(games: any[]) {
+	if (games.length) {
+		noGamesMessage.style.display = 'none';
+	} else {
+		noGamesMessage.style.display = 'inline';
+	}
 
-function socketOnStartGame() {
-	startGameButton.style.display = 'none';
-	joinGameButton.style.display = 'inline-block';
-	seedInput.parentElement.style.display = 'none';
-	previewMapButton.style.display = 'none';
-	randomSeedButton.style.display = 'none';
-}
-socket.on('start-game', socketOnStartGame);
+	for (const child of Array.from(gameList.children)) {
+		for (const joinButton of Array.from(child.querySelectorAll('button[data-role]'))) {
+			joinButton.removeEventListener('click', onJoinGameClick);
+		}
+		child.remove();
+	}
 
-function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
-	newGameDialog.style.display = 'none';
+	for (const game of games) {
+		const li = document.createElement('li');
+		li.classList.add('game-list__item');
+
+		const span = document.createElement('span');
+		span.classList.add('game-list__name');
+		span.textContent = game.name;
+		li.appendChild(span);
+
+		const joinAsRebelButton = document.createElement('button');
+		joinAsRebelButton.classList.add('game-list__join-button');
+		joinAsRebelButton.dataset.role = 'rebel';
+		joinAsRebelButton.dataset.gameId = game.id;
+		if (game.rebel) {
+			joinAsRebelButton.textContent = 'Rebel player present';
+			joinAsRebelButton.setAttribute('disabled', 'true');
+		} else {
+			joinAsRebelButton.textContent = 'Join as rebel player';
+			joinAsRebelButton.addEventListener('click', onJoinGameClick);
+		}
+		li.appendChild(joinAsRebelButton);
+
+		const joinAsAuthorityButton = document.createElement('button');
+		joinAsAuthorityButton.classList.add('game-list__join-button');
+		joinAsAuthorityButton.dataset.role = 'authority';
+		joinAsAuthorityButton.dataset.gameId = game.id;
+		if (game.authority) {
+			joinAsAuthorityButton.textContent = 'Authority player present';
+			joinAsAuthorityButton.setAttribute('disabled', 'true');
+		} else {
+			joinAsAuthorityButton.addEventListener('click', onJoinGameClick);
+			joinAsAuthorityButton.textContent = 'Join as authority player';
+		}
+		li.appendChild(joinAsAuthorityButton);
+
+		gameList.appendChild(li);
+	}
+}
+socket.on('games', socketOnGames);
+
+function socketOnGameJoined(game: any, mapJson: MapJson) {
+	openWindow(gameWindow);
 
 	// set up key controls
 	document.addEventListener('keydown', (e) => {
@@ -163,8 +228,10 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 	};
 	d3.select('#map').call(d3.zoom().filter(() => d3.event.type !== 'dblclick').clickDistance(10).on('zoom', zoomed));
 
-	clientState.role = roleAndMap.role;
+	clientState.gameId = game.id;
+	clientState.role = game.rebel === socket.id ? 'rebel' : 'authority';
 	document.getElementById('role').innerText = clientState.role;
+	document.getElementById('name').innerText = game.name;
 	if (clientState.role === 'observer') {
 		document.getElementById('submit-turn').onclick = null;
 		document.getElementById('submit-turn').style.display = 'none';
@@ -172,15 +239,9 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 		document.getElementById('submit-turn').onclick = submitTurn;
 	}
 
-	clientState.map = mapFromJson(roleAndMap.mapJson);
+	clientState.map = mapFromJson(mapJson);
 
-	// tslint:disable:object-literal-sort-keys
-	render(clientState.map, {
-		width: 4096,
-		height: 4096,
-		seed: 0, // not used for rendering
-	});
-	// tslint:enable:object-literal-sort-keys
+	render(clientState.map);
 
 	const tooltip = d3.select('#tooltip');
 	const centers = d3.select('#centers')
@@ -229,7 +290,7 @@ function socketOnJoinGame(roleAndMap: {role: string, mapJson: MapJson}) {
 			}));
 		});
 }
-socket.on('join-game', socketOnJoinGame);
+socket.on('game-joined', socketOnGameJoined);
 
 function setTurn(district: District, action: string) {
 	clientState.turn = {district: district.id, action};
@@ -319,7 +380,7 @@ function socketOnGameState(newState: GameState) {
 socket.on('game-state', socketOnGameState);
 
 function submitTurn() {
-	socket.emit('submit-turn', clientState.role, clientState.turn);
+	socket.emit('submit-turn', clientState.gameId, clientState.role, clientState.turn);
 	clientState.turn = null;
 	d3.select('#turn-marker').remove();
 }
