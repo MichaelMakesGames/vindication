@@ -395,11 +395,11 @@ function openDistrictBox(district: District) {
 
 	const pops = gameState.pops[district.id];
 	if (!pops || !pops.length) {
-		noPopsMessage.style.display = 'initial';
+		noPopsMessage.style.display = '';
 		districtPops.style.display = 'none';
 	} else {
 		noPopsMessage.style.display = 'none';
-		districtPops.style.display = 'initial';
+		districtPops.style.display = '';
 
 		const sortValue = (pop: Pop) => {
 			if (pop.loyaltyVisibleTo[clientState.role]) {
@@ -431,6 +431,16 @@ function openDistrictBox(district: District) {
 		}).join(' ');
 	}
 
+	const visibleEffects = gameState.effects[district.id].filter((effect) => effect.visibleTo[clientState.role]);
+	if (visibleEffects.length) {
+		noEffectsMessage.style.display = 'none';
+		districtEffects.style.display = '';
+		districtEffects.innerHTML = visibleEffects.map((effect) => `<li>${ effect.label }</li>`).join('');
+	} else {
+		noEffectsMessage.style.display = '';
+		districtEffects.style.display = 'none';
+	}
+
 	const oldActions = Array.from(districtActions.children);
 	oldActions.forEach((child) => districtActions.removeChild(child));
 	oldActions.forEach((child) => child.remove());
@@ -446,7 +456,7 @@ function openDistrictBox(district: District) {
 			return li;
 		}).forEach((element) => districtActions.appendChild(element));
 	} else {
-		noActionsMessage.style.display = 'initial';
+		noActionsMessage.style.display = '';
 	}
 }
 

@@ -1,3 +1,4 @@
+import Effect from './effect';
 import Headline from './headline';
 import Pop from './pop';
 
@@ -14,6 +15,7 @@ export interface GameState {
 			headlines: Headline[];
 	}>;
 	pops: { [districtId: number]: Pop[] };
+	effects: { [districtId: number]: Effect[] };
 	tension: {
 		level: number;
 		progress: number;

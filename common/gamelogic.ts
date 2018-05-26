@@ -8,6 +8,7 @@ export function createInitialState(map: Map, seed: number): GameState {
 	const rng = seedrandom(seed);
 
 	const state: GameState = {
+		effects: {},
 		log: [],
 		pops: {},
 		rebelPosition: 0,
@@ -22,6 +23,10 @@ export function createInitialState(map: Map, seed: number): GameState {
 		},
 		victor: null,
 	};
+
+	for (const district of map.districts) {
+		state.effects[district.id] = [];
+	}
 
 	const urbanDistricts = map.districts.filter((d) => d.type === 'urban');
 
@@ -60,6 +65,10 @@ export function createInitialState(map: Map, seed: number): GameState {
 	return state;
 }
 
+function districtHasEffect(state: GameState, district: District, effectId: string) {
+	return state.effects[district.id].map((effect) => effect.id).includes(effectId);
+}
+
 function areDistrictsAdjacent(from: District, to: District) {
 	const river = from.rivers.includes(to);
 	const bridge = from.bridges.includes(to);
@@ -73,8 +82,9 @@ export function getAvailableActions(role: string, district: District, state: Gam
 	const filter = (neighbor: District) => areDistrictsAdjacent(district, neighbor);
 	const adjacentDistricts = district.neighbors.filter(filter);
 
+	const isUrban = district.type === 'urban';
+
 	if (role === 'rebel') {
-		const isUrban = district.type === 'urban';
 		const isRebelPosition = district.id === state.rebelPosition;
 		const isAdjacentToRebelPosition = adjacentDistricts.some((n) => n.id === state.rebelPosition);
 		const hasNeutralPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
@@ -92,8 +102,12 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		}
 
 	} else if (role === 'authority') {
-		if (district.type === 'urban') {
+		if (isUrban) {
 			actions.push('patrol');
+		}
+
+		if (isUrban && !districtHasEffect(state, district, 'informant')) {
+			actions.push('plant_informant');
 		}
 	}
 
@@ -186,6 +200,21 @@ export function processTurn(map: Map, state: GameState): GameState {
 						rebelPop.loyaltyVisibleTo.authority = true;
 					}
 				}
+			}
+			break;
+		}
+
+		case 'plant_informant': {
+			state.effects[authorityTarget.id].push({
+				id: 'informant',
+				label: 'informant',
+				visibleTo: {
+					authority: true,
+					rebel: false,
+				},
+			});
+			for (const pop of state.pops[authorityTarget.id]) {
+				pop.loyaltyVisibleTo.authority = true;
 			}
 			break;
 		}
