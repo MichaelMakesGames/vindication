@@ -88,12 +88,17 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		const isRebelPosition = district.id === state.rebelPosition;
 		const isAdjacentToRebelPosition = adjacentDistricts.some((n) => n.id === state.rebelPosition);
 		const hasNeutralPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
+		const hasRebelPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'rebel');
 
 		if (isUrban && (isAdjacentToRebelPosition)) {
 			actions.push('move');
 		}
 
 		if (isUrban && hasNeutralPops) {
+			if (hasRebelPops) {
+				actions.push('provoke');
+			}
+
 			if (isRebelPosition || isAdjacentToRebelPosition) {
 				actions.push('propaganda_strong');
 			} else {
@@ -172,6 +177,36 @@ export function processTurn(map: Map, state: GameState): GameState {
 			}
 			break;
 		}
+
+		case 'provoke': {
+			// split up neutral pops according to current loyalties
+			const pops = state.pops[rebelTarget.id];
+			const numRebelPops = pops.filter((p) => p.loyalty === 'rebel').length;
+			const numAuthorityPops = pops.filter((p) => p.loyalty === 'authority').length;
+			let numConvertedToRebel = 0;
+			let numConvertedToAuthority = 0;
+			for (const pop of pops.filter((p) => p.loyalty === 'neutral')) {
+				if (
+					numConvertedToRebel === 0 ||
+					((numConvertedToRebel / numConvertedToAuthority) <= (numRebelPops / numAuthorityPops))
+				) {
+					pop.loyalty = 'rebel';
+					numConvertedToRebel++;
+				} else {
+					pop.loyalty = 'authority';
+					numConvertedToAuthority++;
+				}
+			}
+
+			// make all loyalties visible to authority
+			for (const pop of pops) {
+				pop.loyaltyVisibleTo.authority = true;
+			}
+
+			// raise tension
+			state.tension.progress += 3;
+			break;
+		}
 	}
 
 	switch (state.turns.authority.action) {
@@ -201,6 +236,9 @@ export function processTurn(map: Map, state: GameState): GameState {
 					}
 				}
 			}
+
+			// raise tension
+			state.tension.progress += 1;
 			break;
 		}
 
@@ -218,6 +256,11 @@ export function processTurn(map: Map, state: GameState): GameState {
 			}
 			break;
 		}
+	}
+
+	if (state.tension.progress >= 10) {
+		state.tension.level++;
+		state.tension.progress = 0;
 	}
 
 	state.turns.number++;
