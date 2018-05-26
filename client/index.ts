@@ -327,6 +327,13 @@ document.addEventListener('click', closeActionsMenu);
 function socketOnGameState(newState: GameState) {
 	gameState = newState;
 
+	// refresh district box
+	if (clientState.districtHoverEnabled && clientState.hoveredDistrict) {
+		openDistrictBox(clientState.hoveredDistrict);
+	} else if (clientState.selectedDistrict) {
+		openDistrictBox(clientState.selectedDistrict);
+	}
+
 	document.getElementById('tension-level').innerHTML = gameState.tension.level.toString();
 	document.getElementById('tension-progress').innerHTML = gameState.tension.progress.toString();
 
