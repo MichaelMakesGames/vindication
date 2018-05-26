@@ -77,8 +77,18 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		const isUrban = district.type === 'urban';
 		const isRebelPosition = district.id === state.rebelPosition;
 		const isAdjacentToRebelPosition = adjacentDistricts.some((n) => n.id === state.rebelPosition);
+		const hasNeutralPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
+
 		if (isUrban && (isAdjacentToRebelPosition)) {
 			actions.push('move');
+		}
+
+		if (isUrban && hasNeutralPops) {
+			if (isRebelPosition || isAdjacentToRebelPosition) {
+				actions.push('propaganda_strong');
+			} else {
+				actions.push('propaganda');
+			}
 		}
 
 	} else if (role === 'authority') {
@@ -128,6 +138,22 @@ export function processTurn(map: Map, state: GameState): GameState {
 	switch (state.turns.rebel.action) {
 		case 'move': {
 			state.rebelPosition = rebelTarget.id;
+			break;
+		}
+
+		case 'propaganda': {
+			state.pops[rebelTarget.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
+			break;
+		}
+
+		case 'propaganda_strong': {
+			state.pops[rebelTarget.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
+			for (const district of [rebelTarget, ...rebelTarget.neighbors.filter((n) => areDistrictsAdjacent(n, rebelTarget))]) {
+				const hasNeutralPop = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
+				if (hasNeutralPop) {
+					state.pops[district.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
+				}
+			}
 			break;
 		}
 	}

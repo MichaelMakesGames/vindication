@@ -7,6 +7,7 @@ import { GameState } from '../common/gamestate';
 import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
 import { Map, mapFromJson, MapJson } from '../common/map';
 import { Options } from '../common/options';
+import Pop from '../common/pop';
 
 import { generate } from './mapgen';
 import { polygonToSVGPoints, render, renderPreview } from './render';
@@ -399,6 +400,21 @@ function openDistrictBox(district: District) {
 	} else {
 		noPopsMessage.style.display = 'none';
 		districtPops.style.display = 'initial';
+
+		const sortValue = (pop: Pop) => {
+			if (pop.loyaltyVisibleTo[clientState.role]) {
+				if (pop.loyalty === 'authority') {
+					return 1;
+				} else if (pop.loyalty === 'neutral') {
+					return 2;
+				} else {
+					return 3;
+				}
+			} else {
+				return 4;
+			}
+		};
+		pops.sort((a, b) => sortValue(a) - sortValue(b));
 
 		districtPops.innerHTML = pops.map((pop) => {
 			if (pop.loyaltyVisibleTo[clientState.role]) {
