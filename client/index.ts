@@ -402,6 +402,29 @@ function openDistrictBox(district: District) {
 	districtType.innerText = district.type;
 	districtImage.setAttribute('src', `/images/${ district.type.toLowerCase() }.jpg`);
 
+	const pops = gameState.pops[district.id];
+	if (!pops || !pops.length) {
+		noPopsMessage.style.display = 'initial';
+		districtPops.style.display = 'none';
+	} else {
+		noPopsMessage.style.display = 'none';
+		districtPops.style.display = 'initial';
+
+		districtPops.innerHTML = pops.map((pop) => {
+			if (pop.loyaltyVisibleTo[clientState.role]) {
+				if (pop.loyalty === 'authority') {
+					return '<span style="color: blue; font-weight: bold;">A</span>';
+				} else if (pop.loyalty === 'neutral') {
+					return '<span style="color: black; font-weight: bold;">N</span>';
+				} else {
+					return '<span style="color: red; font-weight: bold;">R</span>';
+				}
+			} else {
+				return '<span style="color: gray; font-weight: bold;">?</span>';
+			}
+		}).join(' ');
+	}
+
 	const oldActions = Array.from(districtActions.children);
 	oldActions.forEach((child) => districtActions.removeChild(child));
 	oldActions.forEach((child) => child.remove());

@@ -1,4 +1,5 @@
 import Headline from './headline';
+import Pop from './pop';
 
 export interface GameState {
 	turns: {
@@ -15,6 +16,7 @@ export interface GameState {
 			turn: number,
 			headlines: Headline[],
 	}>;
+	pops: { [districtId: number]: Pop[] };
 }
 
 export default GameState;
