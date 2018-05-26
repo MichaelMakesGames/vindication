@@ -119,6 +119,7 @@ export class District {
 		this.neighbors = this.neighborSites.map(getDistrict);
 		this.rivers = this.riverSites.map(getDistrict);
 		this.bridges = this.bridgeSites.map(getDistrict);
+		this.ridges = this.ridgeSites.map(getDistrict);
 		this.roads = this.roadSites.map(getDistrict);
 	}
 
