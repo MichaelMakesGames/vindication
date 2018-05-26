@@ -13,6 +13,10 @@ export function createInitialState(map: Map, seed: number): GameState {
 		pops: {},
 		rebelControlled: [],
 		rebelPosition: 0,
+		tension: {
+			level: 1,
+			progress: 0,
+		},
 		turns: {
 			authority: null,
 			number: 1,

@@ -326,6 +326,9 @@ document.addEventListener('click', closeActionsMenu);
 function socketOnGameState(newState: GameState) {
 	gameState = newState;
 
+	document.getElementById('tension-level').innerHTML = gameState.tension.level.toString();
+	document.getElementById('tension-progress').innerHTML = gameState.tension.progress.toString();
+
 	d3.select('#rebel-position').remove();
 	if (clientState.role === REBEL) {
 		d3.select('#overlay').append('circle')

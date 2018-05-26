@@ -3,9 +3,9 @@ import Pop from './pop';
 
 export interface GameState {
 	turns: {
-		number: number,
-		rebel: any | null,
-		authority: any | null,
+		number: number;
+		rebel: any | null;
+		authority: any | null;
 	};
 	rebelControlled: number[];
 	rebelPosition: number;
@@ -13,10 +13,14 @@ export interface GameState {
 	patrols: number[];
 	victor: 'rebel' | 'authority' | null;
 	log: Array<{
-			turn: number,
-			headlines: Headline[],
+			turn: number;
+			headlines: Headline[];
 	}>;
 	pops: { [districtId: number]: Pop[] };
+	tension: {
+		level: number;
+		progress: number;
+	};
 }
 
 export default GameState;
