@@ -100,7 +100,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			}
 
 			if (isRebelPosition || isAdjacentToRebelPosition) {
-				actions.push('propaganda_strong');
+				actions.push('give_speech');
 			} else {
 				actions.push('propaganda');
 			}
@@ -165,11 +165,15 @@ export function processTurn(map: Map, state: GameState): GameState {
 			break;
 		}
 
-		case 'propaganda_strong': {
+		case 'give_speech': {
+			// move rebel
+			state.rebelPosition = rebelTarget.id;
+
 			// make one pop rebel
 			state.pops[rebelTarget.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
+
+			// make one more pop rebel in the same district and each adjacent district
 			for (const district of [rebelTarget, ...rebelTarget.neighbors.filter((n) => areDistrictsAdjacent(n, rebelTarget))]) {
-				// make one more pop rebel in the same district and each adjacent district
 				const hasNeutralPop = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
 				if (hasNeutralPop) {
 					state.pops[district.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
