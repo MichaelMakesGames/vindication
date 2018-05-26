@@ -7,10 +7,7 @@ export interface GameState {
 		rebel: any | null;
 		authority: any | null;
 	};
-	rebelControlled: number[];
 	rebelPosition: number;
-	uncovered: number[];
-	patrols: number[];
 	victor: 'rebel' | 'authority' | null;
 	log: Array<{
 			turn: number;

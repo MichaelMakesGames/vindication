@@ -351,18 +351,6 @@ function socketOnGameState(newState: GameState) {
 		l.headlines.map((h) => `<p>${h.text}</p>`)).reverse().join('</br>')
 	;
 
-	if (clientState.role === REBEL || gameState.victor) {
-		d3.selectAll('.district')
-		.classed('rebel-controlled', (d) => gameState.rebelControlled.includes((d as District).id));
-	} else {
-		d3.selectAll('.district')
-		.classed('rebel-controlled', (d) => gameState.uncovered.includes((d as District).id));
-	}
-	d3.selectAll('.district').classed('patrolled', (d) => gameState.patrols.includes((d as District).id));
-
-	d3.selectAll('.district')
-		.each((d) => (d as District).rebelControlled = gameState.rebelControlled.includes((d as District).id));
-
 	document.getElementById('turn').innerText = gameState.turns.number.toString();
 	if (
 		clientState.role === 'rebel' &&
@@ -373,7 +361,6 @@ function socketOnGameState(newState: GameState) {
 	} else {
 		document.getElementById('submit-turn').innerText = 'Submit Turn';
 	}
-	document.getElementById('rebel-controlled').innerText = gameState.rebelControlled.length.toString();
 	document.getElementById('victor').innerText = gameState.victor || 'None';
 
 	if (gameState.victor) {

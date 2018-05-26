@@ -29,7 +29,6 @@ export interface DistrictJson {
 	neighbors: geometry.Point[];
 	originalPolygon: geometry.Polygon;
 	polygon: geometry.Polygon;
-	rebelControlled: boolean;
 	ridges: geometry.Point[];
 	rivers: geometry.Point[];
 	roadEnds: geometry.Point[];
@@ -51,7 +50,6 @@ export class District {
 		district.name = json.name;
 		district.neighborSites = json.neighbors;
 		district.originalPolygon = json.originalPolygon;
-		district.rebelControlled = json.rebelControlled;
 		district.ridgeSites = json.ridges;
 		district.riverSites = json.rivers;
 		district.roadEnds = json.roadEnds;
@@ -70,7 +68,6 @@ export class District {
 	public name: string = '';
 	public neighbors: District[] = [];
 	public originalPolygon: geometry.Polygon;
-	public rebelControlled: boolean = false;
 	public ridges: District[] = [];
 	public rivers: District[] = []; // neighbors across a river segment
 	public roadEnds: geometry.Point[] = []; // points (from this.originalPolygon) that major roads start/end at
@@ -105,7 +102,6 @@ export class District {
 			neighbors: this.neighbors.map((d) => d.site),
 			originalPolygon: this.originalPolygon,
 			polygon: this.polygon,
-			rebelControlled: this.rebelControlled,
 			ridges: this.ridges.map((d) => d.site),
 			rivers: this.rivers.map((d) => d.site),
 			roadEnds: this.roadEnds,
