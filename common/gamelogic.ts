@@ -147,8 +147,10 @@ export function processTurn(map: Map, state: GameState): GameState {
 		}
 
 		case 'propaganda_strong': {
+			// make one pop rebel
 			state.pops[rebelTarget.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
 			for (const district of [rebelTarget, ...rebelTarget.neighbors.filter((n) => areDistrictsAdjacent(n, rebelTarget))]) {
+				// make one more pop rebel in the same district and each adjacent district
 				const hasNeutralPop = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
 				if (hasNeutralPop) {
 					state.pops[district.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
@@ -160,7 +162,31 @@ export function processTurn(map: Map, state: GameState): GameState {
 
 	switch (state.turns.authority.action) {
 		case 'patrol': {
-			// TODO
+			const pops = state.pops[authorityTarget.id];
+			if (!pops.some((p) => p.loyalty === 'neutral')) {
+				// if no pop can be converted, then authority player can figure out that all remaining unknown pops are rebel
+				for (const pop of pops) {
+					pop.loyaltyVisibleTo.authority = true;
+				}
+			} else {
+				// move one pop to authority
+				const pop1 = pops.find((p) => p.loyalty === 'neutral');
+				pop1.loyalty = 'authority';
+				pop1.loyaltyVisibleTo.authority = true;
+
+				// move on pop to rebel and make it visible
+				const pop2 = pops.find((p) => p.loyalty === 'neutral');
+				if (pop2) {
+					pop2.loyalty = 'rebel';
+					pop2.loyaltyVisibleTo.authority = true;
+				} else {
+					// if no more neutral pops, make one existing rebel pop visible
+					const rebelPop = pops.find((p) => p.loyalty === 'rebel' && !p.loyaltyVisibleTo.authority);
+					if (rebelPop) {
+						rebelPop.loyaltyVisibleTo.authority = true;
+					}
+				}
+			}
 			break;
 		}
 	}
