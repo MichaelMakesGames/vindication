@@ -162,6 +162,14 @@ export function processTurn(map: Map, state: GameState): GameState {
 
 		case 'propaganda': {
 			state.pops[rebelTarget.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
+			log.headlines.push({
+				district: rebelTarget.id,
+				text: `Informant: Your informant reports growing rebel sentiment in ${ rebelTarget.name }`,
+				visibleTo: {
+					authority: true,
+					rebel: false,
+				},
+			});
 			break;
 		}
 
@@ -178,6 +186,28 @@ export function processTurn(map: Map, state: GameState): GameState {
 				if (hasNeutralPop) {
 					state.pops[district.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
 				}
+
+				if (district !== rebelTarget && districtHasEffect(state, district, 'informant')) {
+					log.headlines.push({
+						district: district.id,
+						text: `Informant: Your informant reports growing rebel sentiment in ${ district.name }`,
+						visibleTo: {
+							authority: true,
+							rebel: false,
+						},
+					});
+				}
+			}
+
+			if (districtHasEffect(state, rebelTarget, 'informant')) {
+				log.headlines.push({
+					district: rebelTarget.id,
+					text: `Informant: Your informant reports that the rebel leadership was seen giving a speech in ${ rebelTarget.name }`, // tslint:disable-line:max-line-length
+					visibleTo: {
+						authority: true,
+						rebel: false,
+					},
+				});
 			}
 			break;
 		}
@@ -209,6 +239,15 @@ export function processTurn(map: Map, state: GameState): GameState {
 
 			// raise tension
 			state.tension.progress += 3;
+
+			log.headlines.push({
+				district: rebelTarget.id,
+				text: `Confrontation between police and protesters in ${ rebelTarget.name } turns violent!`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
 			break;
 		}
 	}
@@ -221,6 +260,15 @@ export function processTurn(map: Map, state: GameState): GameState {
 				for (const pop of pops) {
 					pop.loyaltyVisibleTo.authority = true;
 				}
+
+				log.headlines.push({
+					district: authorityTarget.id,
+					text: `Residents of ${ authorityTarget.name} angered by additional patrols`,
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
 			} else {
 				// move one pop to authority
 				const pop1 = pops.find((p) => p.loyalty === 'neutral');
@@ -239,6 +287,15 @@ export function processTurn(map: Map, state: GameState): GameState {
 						rebelPop.loyaltyVisibleTo.authority = true;
 					}
 				}
+
+				log.headlines.push({
+					district: authorityTarget.id,
+					text: `Mixed reactions to additional police presence in ${ authorityTarget.name }`,
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
 			}
 
 			// raise tension

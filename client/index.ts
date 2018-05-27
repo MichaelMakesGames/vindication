@@ -356,7 +356,9 @@ function socketOnGameState(newState: GameState) {
 	document.getElementById('log').innerHTML =
 		'<h3>Headlines</h3>' +
 		gameState.log.map((l) => `<h4>Day ${l.turn}</h4>` +
-		l.headlines.map((h) => `<p>${h.text}</p>`)).reverse().join('</br>')
+		l.headlines
+			.filter((h) => h.visibleTo[clientState.role])
+			.map((h) => `<p>${h.text}</p>`).join('')).reverse().join('</br>')
 	;
 
 	document.getElementById('turn').innerText = gameState.turns.number.toString();
