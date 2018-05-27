@@ -353,13 +353,7 @@ function socketOnGameState(newState: GameState) {
 		(d) => !!getAvailableActions(clientState.role, d, gameState).length,
 	);
 
-	document.getElementById('log').innerHTML =
-		'<h3>Headlines</h3>' +
-		gameState.log.map((l) => `<h4>Day ${l.turn}</h4>` +
-		l.headlines
-			.filter((h) => h.visibleTo[clientState.role])
-			.map((h) => `<p>${h.text}</p>`).join('')).reverse().join('</br>')
-	;
+	updateHeadlines(gameState);
 
 	document.getElementById('turn').innerText = gameState.turns.number.toString();
 	if (
@@ -378,6 +372,48 @@ function socketOnGameState(newState: GameState) {
 	}
 }
 socket.on('game-state', socketOnGameState);
+
+function updateHeadlines(state: GameState): void {
+	const log = document.getElementById('log');
+
+	for (const p of Array.from(log.querySelectorAll('[data-headline-district]'))) {
+		p.removeEventListener('mouseenter', onHeadlineMouseEnter);
+		p.removeEventListener('mouseleave', onHeadlineMouseLeave);
+	}
+
+	log.innerHTML = '<h3>Headlines</h3>';
+
+	for (const logItem of state.log.map((foo) => foo).reverse()) {
+		const h4 = document.createElement('h4');
+		h4.innerText = `Turn ${ logItem.turn }`;
+		log.appendChild(h4);
+
+		for (const headline of logItem.headlines.filter((h) => h.visibleTo[clientState.role])) {
+			const p = document.createElement('p');
+			p.innerText = headline.text;
+			p.dataset.headlineDistrict = headline.district.toString();
+			p.addEventListener('mouseenter', onHeadlineMouseEnter);
+			p.addEventListener('mouseleave', onHeadlineMouseLeave);
+			log.appendChild(p);
+		}
+	}
+}
+
+function onHeadlineMouseEnter() {
+	clientState.overlay.classed('selected', (d) => d.id === parseFloat(this.dataset.headlineDistrict));
+	openDistrictBox(clientState.map.districts[this.dataset.headlineDistrict]);
+	this.style.background = 'rgba(0, 0, 0, 0.1)';
+}
+
+function onHeadlineMouseLeave() {
+	clientState.overlay.classed('selected', (d) => d.id === clientState.selectedDistrict.id);
+	if (clientState.selectedDistrict) {
+		openDistrictBox(clientState.selectedDistrict);
+	} else {
+		closeDistrictBox();
+	}
+	this.style.background = '';
+}
 
 function submitTurn() {
 	socket.emit('submit-turn', clientState.gameId, clientState.role, clientState.turn);
