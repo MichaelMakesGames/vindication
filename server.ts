@@ -3,8 +3,9 @@ import * as express from 'express';
 import * as http from 'http';
 import * as socketIo from 'socket.io';
 
+import { Action } from './common/action';
 import { createInitialState, processTurn, submitTurn } from './common/gamelogic';
-import GameState from './common/gamestate';
+import { GameState } from './common/gamestate';
 import { Map, mapFromJson, MapJson } from './common/map';
 import { generate } from './mapgen/mapgen';
 
@@ -89,8 +90,8 @@ io.on('connection', (socket) => {
 		io.emit('games', games);
 	});
 
-	socket.on('submit-turn', (id, role, turn) => {
-		const game = getGame(id);
+	socket.on('submit-turn', (gameId: number, role: 'authority' | 'rebel', turn: Action) => {
+		const game = getGame(gameId);
 		if (game[role] === socket.id) {
 			game.state = submitTurn(maps[game.id], game.state, role, turn);
 			if (game.state.turns.rebel && game.state.turns.authority) {

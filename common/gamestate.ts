@@ -1,3 +1,4 @@
+import Action from './action';
 import Effect from './effect';
 import Headline from './headline';
 import Pop from './pop';
@@ -5,8 +6,8 @@ import Pop from './pop';
 export interface GameState {
 	turns: {
 		number: number;
-		rebel: any | null;
-		authority: any | null;
+		rebel: Action | null;
+		authority: Action | null;
 	};
 	rebelPosition: number;
 	victor: 'rebel' | 'authority' | null;

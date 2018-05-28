@@ -1,13 +1,14 @@
 import * as d3 from 'd3';
 import * as io from 'socket.io-client';
 
+import { Action } from '../common/action';
 import { District, DistrictJson } from '../common/district';
 import { getAvailableActions } from '../common/gamelogic';
 import { GameState } from '../common/gamestate';
 import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
 import { Map, mapFromJson, MapJson } from '../common/map';
 import { Options } from '../common/options';
-import Pop from '../common/pop';
+import { Pop } from '../common/pop';
 
 import { generate } from './mapgen';
 import { polygonToSVGPoints, render, renderPreview } from './render';
@@ -85,7 +86,7 @@ const clientState: {
 	role: string,
 	selectedDistrict: District,
 	scale: number,
-	turn: any,
+	turn: Action,
 } = {
 	districtHoverEnabled: false,
 	districtMenuOpen: false,
@@ -286,15 +287,14 @@ function socketOnGameJoined(game: any, mapJson: MapJson) {
 				.style('top', `${centerCircle.getBoundingClientRect().top}px`);
 			document.getElementById('tooltipDistrictName').innerText = d.name;
 
-			openActionsMenu(actions.map((action) => {
-				return {district: d, action};
-			}));
+			openActionsMenu(actions);
 		});
 }
 socket.on('game-joined', socketOnGameJoined);
 
-function setTurn(district: District, action: string) {
-	clientState.turn = {district: district.id, action};
+function setTurn(action: Action) {
+	const district = clientState.map.districts[action.district];
+	clientState.turn = action;
 	d3.select('#turn-marker').remove();
 	d3.select('#overlay').append('circle')
 		.attr('id', 'turn-marker')
@@ -305,15 +305,15 @@ function setTurn(district: District, action: string) {
 		.style('pointer-events', 'none');
 }
 
-function openActionsMenu(actions: Array<{action: string, district: District}>) {
+function openActionsMenu(actions: Action[]) {
 	clientState.districtMenuOpen = true;
 	d3.select('#tooltipActions').selectAll('button').remove();
 	d3.select('#tooltipActions').selectAll('li').data(actions)
 		.enter().append('li').append('button')
 		.classed('action', true)
-		.text((d) => d.action)
+		.text((d) => d.label)
 		.on('click', (d) => {
-			setTurn(d.district, d.action);
+			setTurn(d);
 		});
 }
 
@@ -494,8 +494,8 @@ function openDistrictBox(district: District) {
 		noActionsMessage.style.display = 'none';
 		actions.map((action) => {
 			const button = document.createElement('button');
-			button.innerHTML = action;
-			button.addEventListener('click', () => setTurn(district, action));
+			button.innerHTML = action.label;
+			button.addEventListener('click', () => setTurn(action));
 			const li = document.createElement('li');
 			li.appendChild(button);
 			return li;

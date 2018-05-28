@@ -1,5 +1,6 @@
 import * as seedrandom from 'seedrandom';
 
+import { Action } from './action';
 import { District } from './district';
 import { GameState } from './gamestate';
 import { Map } from './map';
@@ -76,8 +77,8 @@ function areDistrictsAdjacent(from: District, to: District) {
 	return (!ridge && (bridge || !river));
 }
 
-export function getAvailableActions(role: string, district: District, state: GameState): string[] {
-	const actions: string[] = [];
+export function getAvailableActions(role: string, district: District, state: GameState): Action[] {
+	const actions: Action[] = [];
 
 	const filter = (neighbor: District) => areDistrictsAdjacent(district, neighbor);
 	const adjacentDistricts = district.neighbors.filter(filter);
@@ -91,28 +92,52 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		const hasRebelPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'rebel');
 
 		if (isUrban && (isAdjacentToRebelPosition)) {
-			actions.push('move');
+			actions.push({
+				district: district.id,
+				id: 'move',
+				label: 'Move',
+			});
 		}
 
 		if (isUrban && hasNeutralPops) {
 			if (hasRebelPops) {
-				actions.push('provoke');
+				actions.push({
+					district: district.id,
+					id: 'provoke',
+					label: 'Provoke confrontation',
+				});
 			}
 
 			if (isRebelPosition || isAdjacentToRebelPosition) {
-				actions.push('give_speech');
+				actions.push({
+					district: district.id,
+					id: 'give_speech',
+					label: 'Give speech',
+				});
 			} else {
-				actions.push('propaganda');
+				actions.push({
+					district: district.id,
+					id: 'propaganda',
+					label: 'Spread propaganda',
+				});
 			}
 		}
 
 	} else if (role === 'authority') {
 		if (isUrban) {
-			actions.push('patrol');
+			actions.push({
+				district: district.id,
+				id: 'patrol',
+				label: 'Send additional patrols',
+			});
 		}
 
 		if (isUrban && !districtHasEffect(state, district, 'informant')) {
-			actions.push('plant_informant');
+			actions.push({
+				district: district.id,
+				id: 'plant_informant',
+				label: 'Plant informant',
+			});
 		}
 	}
 
@@ -123,23 +148,23 @@ export function submitTurn(
 	map: Map,
 	state: GameState,
 	role: string,
-	turn: {district: number, action: string},
+	action: Action,
 ): GameState {
 	// validate turn
-	if (!turn) {
+	if (!action) {
 		return state;
 	}
-	const district = map.districts[turn.district];
+	const district = map.districts[action.district];
 	const actions = getAvailableActions(role, district, state);
-	if (!actions.includes(turn.action)) {
+	if (!actions.map((a) => a.id).includes(action.id)) {
 		return state;
 	}
 
 	if (role === 'rebel') {
-		state.turns.rebel = turn;
+		state.turns.rebel = action;
 	}
 	if (role === 'authority') {
-		state.turns.authority = turn;
+		state.turns.authority = action;
 	}
 	return state;
 }
@@ -154,7 +179,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 		turn: state.turns.number,
 	};
 
-	switch (state.turns.rebel.action) {
+	switch (state.turns.rebel.id) {
 		case 'move': {
 			state.rebelPosition = rebelTarget.id;
 			break;
@@ -252,7 +277,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 		}
 	}
 
-	switch (state.turns.authority.action) {
+	switch (state.turns.authority.id) {
 		case 'patrol': {
 			const pops = state.pops[authorityTarget.id];
 			if (!pops.some((p) => p.loyalty === 'neutral')) {
