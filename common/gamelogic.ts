@@ -66,8 +66,12 @@ export function createInitialState(map: Map, seed: number): GameState {
 	return state;
 }
 
-function districtHasEffect(state: GameState, district: District, effectId: string) {
+function hasEffect(state: GameState, district: District, effectId: string) {
 	return state.effects[district.id].map((effect) => effect.id).includes(effectId);
+}
+
+function getEffect(state: GameState, district: District, effectId: string) {
+	return state.effects[district.id].find((e) => e.id === effectId);
 }
 
 export function areDistrictsAdjacent(from: District, to: District) {
@@ -90,6 +94,8 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		const isAdjacentToRebelPosition = adjacentDistricts.some((n) => n.id === state.rebelPosition);
 		const hasNeutralPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
 		const hasRebelPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'rebel');
+
+		// Tension Level 1 Actions
 
 		if (isUrban && (isAdjacentToRebelPosition)) {
 			actions.push({
@@ -123,6 +129,22 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			}
 		}
 
+		// Tension Level 2 Actions
+
+		if (
+			state.tension.level === 2 &&
+			isUrban &&
+			hasRebelPops &&
+			(isRebelPosition || isAdjacentToRebelPosition) &&
+			!hasEffect(state, district, 'checkpoints')
+		) {
+			actions.push({
+				district: district.id,
+				id: 'organize',
+				label: 'Organize sympathizers',
+			});
+		}
+
 	} else if (role === 'authority') {
 		if (isUrban) {
 			actions.push({
@@ -132,7 +154,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			});
 		}
 
-		if (isUrban && !districtHasEffect(state, district, 'informant')) {
+		if (isUrban && !hasEffect(state, district, 'informant')) {
 			actions.push({
 				district: district.id,
 				id: 'plant_informant',
@@ -212,7 +234,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 					state.pops[district.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
 				}
 
-				if (district !== rebelTarget && districtHasEffect(state, district, 'informant')) {
+				if (district !== rebelTarget && hasEffect(state, district, 'informant')) {
 					log.headlines.push({
 						district: district.id,
 						text: `Informant: Your informant reports growing rebel sentiment in ${ district.name }`,
@@ -224,7 +246,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 				}
 			}
 
-			if (districtHasEffect(state, rebelTarget, 'informant')) {
+			if (hasEffect(state, rebelTarget, 'informant')) {
 				log.headlines.push({
 					district: rebelTarget.id,
 					text: `Informant: Your informant reports that the rebel leadership was seen giving a speech in ${ rebelTarget.name }`, // tslint:disable-line:max-line-length
@@ -274,6 +296,27 @@ export function processTurn(map: Map, state: GameState): GameState {
 				},
 			});
 			break;
+		}
+
+		case 'organize': {
+			state.effects[rebelTarget.id].push({
+				id: 'organized',
+				label: 'Rebels organized',
+				visibleTo: {
+					authority: hasEffect(state, rebelTarget, 'informant'),
+					rebel: true,
+				},
+			});
+			if (hasEffect(state, rebelTarget, 'informant')) {
+				log.headlines.push({
+					district: rebelTarget.id,
+					text: `Informant: Your informant reports that dissedents in ${ rebelTarget.name } are organizing`,
+					visibleTo: {
+						authority: true,
+						rebel: false,
+					},
+				});
+			}
 		}
 	}
 
@@ -339,6 +382,19 @@ export function processTurn(map: Map, state: GameState): GameState {
 			});
 			for (const pop of state.pops[authorityTarget.id]) {
 				pop.loyaltyVisibleTo.authority = true;
+			}
+
+			// reveal if rebels are organized
+			if (hasEffect(state, authorityTarget, 'organized')) {
+				log.headlines.push({
+					district: authorityTarget.id,
+					text: `Informant: Your newly recruited informant reports existing rebel cells in ${ authorityTarget.name }`,
+					visibleTo: {
+						authority: true,
+						rebel: false,
+					},
+				});
+				getEffect(state, authorityTarget, 'organized').visibleTo.authority = true;
 			}
 			break;
 		}
