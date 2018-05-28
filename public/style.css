@@ -135,6 +135,10 @@ svg {
   height: calc(100vh - 80px);
 }
 
+.log__headline:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 .infobox--district {
   top: 40px;
   height: calc(100vh - 80px);

@@ -392,6 +392,7 @@ function updateHeadlines(state: GameState): void {
 			const p = document.createElement('p');
 			p.innerText = headline.text;
 			p.dataset.headlineDistrict = headline.district.toString();
+			p.classList.add('log__headline');
 			p.addEventListener('mouseenter', onHeadlineMouseEnter);
 			p.addEventListener('mouseleave', onHeadlineMouseLeave);
 			log.appendChild(p);
@@ -402,7 +403,6 @@ function updateHeadlines(state: GameState): void {
 function onHeadlineMouseEnter() {
 	clientState.overlay.classed('selected', (d) => d.id === parseFloat(this.dataset.headlineDistrict));
 	openDistrictBox(clientState.map.districts[this.dataset.headlineDistrict]);
-	this.style.background = 'rgba(0, 0, 0, 0.1)';
 }
 
 function onHeadlineMouseLeave() {
@@ -412,7 +412,6 @@ function onHeadlineMouseLeave() {
 	} else {
 		closeDistrictBox();
 	}
-	this.style.background = '';
 }
 
 function submitTurn() {
