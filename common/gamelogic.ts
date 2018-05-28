@@ -70,7 +70,7 @@ function districtHasEffect(state: GameState, district: District, effectId: strin
 	return state.effects[district.id].map((effect) => effect.id).includes(effectId);
 }
 
-function areDistrictsAdjacent(from: District, to: District) {
+export function areDistrictsAdjacent(from: District, to: District) {
 	const river = from.rivers.includes(to);
 	const bridge = from.bridges.includes(to);
 	const ridge = from.ridges.includes(to);

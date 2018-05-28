@@ -3,7 +3,7 @@ import * as io from 'socket.io-client';
 
 import { Action } from '../common/action';
 import { District, DistrictJson } from '../common/district';
-import { getAvailableActions } from '../common/gamelogic';
+import { areDistrictsAdjacent, getAvailableActions } from '../common/gamelogic';
 import { GameState } from '../common/gamestate';
 import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
 import { Map, mapFromJson, MapJson } from '../common/map';
@@ -429,6 +429,8 @@ function openDistrictBox(district: District) {
 	const noPopsMessage = document.getElementById('districtNoPops');
 	const districtEffects = document.getElementById('districtEffects');
 	const noEffectsMessage = document.getElementById('districtNoEffects');
+	const districtNeighbors = document.getElementById('districtNeighbors');
+	const noNeighborsMessage = document.getElementById('districtNoNeighbors');
 	const districtActions = document.getElementById('districtActions');
 	const noActionsMessage = document.getElementById('districtNoActions');
 
@@ -483,6 +485,16 @@ function openDistrictBox(district: District) {
 	} else {
 		noEffectsMessage.style.display = '';
 		districtEffects.style.display = 'none';
+	}
+
+	const neighbors = district.neighbors
+		.filter((n) => n.type === 'urban')
+		.filter((n) => areDistrictsAdjacent(n, district));
+	districtNeighbors.innerHTML = neighbors.map((n) => `<li>${ n.name }</li>`).join('');
+	if (neighbors.length) {
+		noNeighborsMessage.style.display = 'none';
+	} else {
+		noNeighborsMessage.style.display = '';
 	}
 
 	const oldActions = Array.from(districtActions.children);
