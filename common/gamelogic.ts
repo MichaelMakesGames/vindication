@@ -3,6 +3,7 @@ import * as seedrandom from 'seedrandom';
 import { Action } from './action';
 import { District } from './district';
 import { GameState } from './gamestate';
+import { Headline } from './headline';
 import { Map } from './map';
 
 export function createInitialState(map: Map, seed: number): GameState {
@@ -154,6 +155,20 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			});
 		}
 
+		if (
+			state.tension.level === 2 &&
+			isUrban &&
+			hasRebelPops &&
+			(isRebelPosition || isAdjacentToRebelPosition) &&
+			hasCheckpoints
+		) {
+			actions.push({
+				district: district.id,
+				id: 'riot',
+				label: 'Incite riot',
+			});
+		}
+
 	} else if (role === 'authority') {
 
 		// Tension Level 1 Actions
@@ -221,10 +236,28 @@ export function processTurn(map: Map, state: GameState): GameState {
 	const rebelTarget = map.districts[state.turns.rebel.district];
 	const authorityTarget = map.districts[state.turns.authority.district];
 
-	const log = {
+	const log: {
+		headlines: Headline[],
+		turn: number,
+	} = {
 		headlines: [],
 		turn: state.turns.number,
 	};
+
+	// pre-turn processing
+	for (const district of map.districts) {
+		if (hasEffect(state, district, 'riot')) {
+			state.effects[district.id] = state.effects[district.id].filter((e) => e.id !== 'riot');
+			log.headlines.push({
+				district: district.id,
+				text: `Rioters in ${ district.name } disperse after night of destruction`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+		}
+	}
 
 	switch (state.turns.rebel.id) {
 		case 'move': {
@@ -342,6 +375,29 @@ export function processTurn(map: Map, state: GameState): GameState {
 					},
 				});
 			}
+			break;
+		}
+
+		case 'riot': {
+			state.rebelPosition = rebelTarget.id;
+			state.effects[rebelTarget.id].push({
+				id: 'riot',
+				label: 'Rioting',
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+			log.headlines.push({
+				district: rebelTarget.id,
+				text: `Riots break out in ${ rebelTarget.name }`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+			state.tension.progress += 3;
+			break;
 		}
 	}
 
