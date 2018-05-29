@@ -283,6 +283,7 @@ function urbanize(core: District, maxDistricts: number): void {
 }
 
 function generateMap(mapType: MapType, options: Options, rng): MapJson {
+	console.time('generate map');
 	const map: MapJson = {
 		bridges: [] as Edge[],
 		coasts: [] as Point[][],
@@ -299,9 +300,7 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		},
 	};
 
-	const voronoiDiagram = voronoi<Point>().x((d) => d.x).y((d) => d.y);
-	voronoiDiagram.extent([[0, 0], [WIDTH, HEIGHT]]);
-
+	console.time('create sites');
 	const points: Point[] = [];
 	for (let i = 0; i < WIDTH; i += SITE_GRID_SIZE) {
 		for (let j = 0; j < HEIGHT; j += SITE_GRID_SIZE) {
@@ -318,9 +317,15 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			}
 		}
 	}
+	console.timeEnd('create sites');
 
+	console.time('create diagram');
+	const voronoiDiagram = voronoi<Point>().x((d) => d.x).y((d) => d.y);
+	voronoiDiagram.extent([[0, 0], [WIDTH, HEIGHT]]);
 	const diagram = voronoiDiagram(points);
+	console.timeEnd('create diagram');
 
+	console.time('create districts');
 	const d3Polygons = diagram.polygons().filter(Boolean);
 	const districts: District[] = d3Polygons.map((d3Polygon, index) => {
 		const polygon = { points: d3Polygon.map(([x, y]) => ({ x, y })) };
@@ -328,7 +333,9 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		district.site = d3Polygon.data;
 		return district;
 	});
+	console.timeEnd('create districts');
 
+	console.time('create districts by site map');
 	const districtsBySite: { [site: string]: District } = districts.reduce((
 		acc: { [site: string]: District },
 		cur: District,
@@ -339,14 +346,17 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	function getDistrictBySite(site: Point): District {
 		return districtsBySite[nodeToKey(site)];
 	}
+	console.timeEnd('create districts by site map');
 
 	// add neighbors to districts
+	console.time('add neighbors');
 	for (const edge of diagram.edges.filter((e) => e && e.left && e.right)) {
 		const left = getDistrictBySite(edge.left.data);
 		const right = getDistrictBySite(edge.right.data);
 		left.neighbors.push(right);
 		right.neighbors.push(left);
 	}
+	console.timeEnd('add neighbors');
 
 	function getSitePolygon(site) {
 		return getCellPolygon(diagram.cells[site.index]);
@@ -380,37 +390,55 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		return (yHeightFactor + xHeightFactor) / 2 + randomHeightFactor;
 	}
 
+	console.time('create river sites');
 	const riverSites: number[][] = [];
+	const getNeighborsCache: {[key: string]: number[][]} = {};
+	const voronoiSiteToRiverSites: {[key: string]: number[][]} = {};
+	for (const district of districts) {
+		voronoiSiteToRiverSites[`${district.site.x},${district.site.y}`] = [];
+	}
+
 	for (const edge of diagram.edges.filter(Boolean)) {
 		if (!riverSites.some((site) => site[0] === edge[0][0] && site[1] === edge[0][1])) {
 			riverSites.push(edge[0]);
+			getNeighborsCache[`${edge[0][0]},${edge[0][1]}`] = [];
 		}
 		if (!riverSites.some((site) => site[0] === edge[1][0] && site[1] === edge[1][1])) {
 			riverSites.push(edge[1]);
+			getNeighborsCache[`${edge[1][0]},${edge[1][1]}`] = [];
+		}
+		getNeighborsCache[`${edge[0][0]},${edge[0][1]}`].push(edge[1]);
+		getNeighborsCache[`${edge[1][0]},${edge[1][1]}`].push(edge[0]);
+		if (edge.left && edge.left.data) {
+			const key = `${edge.left.data.x},${edge.left.data.y}`;
+			const sites = voronoiSiteToRiverSites[key];
+			if (!sites.includes(edge[0])) {
+				sites.push(edge[0]);
+			}
+			if (!sites.includes(edge[1])) {
+				sites.push(edge[1]);
+			}
+		}
+		if (edge.right && edge.right.data) {
+			const key = `${edge.right.data.x},${edge.right.data.y}`;
+			const sites = voronoiSiteToRiverSites[key];
+			if (!sites.includes(edge[0])) {
+				sites.push(edge[0]);
+			}
+			if (!sites.includes(edge[1])) {
+				sites.push(edge[1]);
+			}
 		}
 	}
-
-	const getNeighborsCache: {[key: string]: number[][]} = {};
-	function getNeighbors(site: number[]): number[][] {
-		const cacheKey = `${site[0]},${site[1]}`;
-		if (getNeighborsCache[cacheKey]) {
-			return getNeighborsCache[cacheKey];
-		}
-
-		const rightNeighbors = diagram.edges
-			.filter((e) => e[0][0] === site[0] && e[0][1] === site[1])
-			.map((e) => riverSites.find((s) => e[1][0] === s[0] && e[1][1] === s[1]));
-		const leftNeighbors = diagram.edges
-			.filter((e) => e[1][0] === site[0] && e[1][1] === site[1])
-			.map((e) => riverSites.find((s) => e[0][0] === s[0] && e[0][1] === s[1]));
-
-		const neighbors = [...rightNeighbors, ...leftNeighbors];
-		getNeighborsCache[cacheKey] = neighbors;
-		return neighbors;
-	}
+	console.timeEnd('create river sites');
 
 	// push height and flux to each river site
 	riverSites.forEach((s) => s.push(calcHeight(s[0], s[1]), 0));
+
+	function getNeighbors(site: number[]): number[][] {
+		const cacheKey = `${site[0]},${site[1]}`;
+		return getNeighborsCache[cacheKey];
+	}
 
 	function getLowestNeighbor(site: number[]): number[] {
 		const neighbors = getNeighbors(site);
@@ -421,23 +449,31 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 	function isDepression(site: number[]) {
 		return (
 			site[1] !== HEIGHT &&
-			getNeighbors(site).every((n) => n[2] >= site[2])
+			getLowestNeighbor(site)[2] > site[2]
 		);
 	}
 
 	function fillDepressions() {
+		console.time('fill depressions');
 		// depression filling
 		let depressions = riverSites.filter(isDepression);
 		while (depressions.length) {
 			for (const depression of depressions) {
 				depression[2] = getLowestNeighbor(depression)[2] + 0.001;
 			}
-			depressions = riverSites.filter(isDepression);
+			depressions = depressions
+				.map(getNeighbors)
+				.reduce((prev, cur) => prev.concat(cur), [])
+				.filter((s, i, a) => !a.includes(s, i + 1))
+				.filter(isDepression);
+			// depressions = riverSites.filter(isDepression);
 		}
+		console.timeEnd('fill depressions');
 	}
 
 	// erosion
 	fillDepressions();
+	console.time('erosion');
 	for (let i = 0; i < EROSION_CYCLES; i++) {
 		riverSites.forEach((s) => s[3] = BASE_FLUX);
 		riverSites.sort((a, b) => b[2] - a[2]);
@@ -450,27 +486,33 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			site[2] -= site[3] + meanFlux;
 		}
 	}
+	console.timeEnd('erosion');
 	fillDepressions();
+	console.log('depressions:', riverSites.filter(isDepression).length);
 
 	// set district heights
+	console.time('set district heights');
 	for (const district of districts) {
-		const cornerHeights = riverSites.filter((site) => {
-			return district.polygon.points.some((p) => p.x === site[0] && p.y === site[1]);
-		}).map((site) => site[2]);
+		const cornerHeights = voronoiSiteToRiverSites[`${district.site.x},${district.site.y}`]
+			.map((site) => site[2]);
 		district.height = mean(cornerHeights);
 		if (district.height < 0) {
 			district.type = 'water';
 		}
 	}
+	console.timeEnd('set district heights');
 
 	// plant forests
+	console.time('determine forests');
 	for (const district of districts) {
 		if (district.height > FOREST_ALTITUDE) {
 			district.type = 'forest';
 		}
 	}
+	console.timeEnd('determine forests');
 
 	// determine coasts
+	console.time('determine coasts');
 	const coastEdges: Edge[] = [];
 	(() => {
 		for (const edge of diagram.edges.filter((e) => e && e.left && e.right)) {
@@ -489,8 +531,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		coastLines.sort((a, b) => b.length - a.length);
 		map.coasts = coastLines;
 	})();
+	console.timeEnd('determine coasts');
 
 	// make river
+	console.time('determine river');
 	const riverWidth = Math.floor(rng() * 30 + 30);
 	const river: Point[] = [];
 
@@ -508,6 +552,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			x: next[0],
 			y: next[1],
 		});
+		if (next[2] > riverNode[2]) {
+			console.error('RIVER WENT UPHILL');
+			break;
+		}
 		const onCoast = districts.filter((d) => d.type === 'water').some((d) => {
 			return d.polygon.points.some((p) => p.x === next[0] && p.y === next[1]);
 		});
@@ -520,8 +568,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 	map.river.path = river;
 	map.river.width = riverWidth;
+	console.timeEnd('determine river');
 
 	// add river to districts
+	console.time('add river to districts');
 	const riverEdges = geometry.getPolygonEdges({points: river});
 	riverEdges.length -= 1;
 	for (const edge of riverEdges) {
@@ -544,8 +594,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			right.rivers.push(left);
 		}
 	}
+	console.timeEnd('add river to districts');
 
 	// determine ridges
+	console.time('determine ridges');
 	let ridgeEdges: Edge[] = [];
 	for (
 		const voronoiEdge
@@ -581,8 +633,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		prev.push(...cur);
 		return prev;
 	}, []);
+	console.timeEnd('determine ridges');
 
 	// add ridges to districts
+	console.time('add ridges to districts');
 	for (const edge of ridgeEdges) {
 		const voronoiEdge = diagram.edges.filter(Boolean).find((e) => {
 			return geometry.areEdgesEquivalent(
@@ -604,8 +658,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		}
 	}
 	map.ridges = ridges;
+	console.timeEnd('add ridges to districts');
 
 	// place villages
+	console.time('place villages');
 	for (let i = 0; i < NUM_VILLAGES; i++) {
 		const potentialDistricts = districts.filter((d) => d.type === 'rural');
 		const newVillage = pickWeighted<District>(potentialDistricts, (d) => d.calcVillageScore(), rng);
@@ -614,8 +670,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		newVillage.blockSize = VILLAGE_BLOCK_SIZE;
 		newVillage.streetWidth = VILLAGE_STREET_WIDTH;
 	}
+	console.timeEnd('place villages');
 
 	// place bridges on villages on river
+	console.time('place bridges');
 	for (const village of districts.filter((d) => d.type === 'village').filter((d) => d.rivers.length)) {
 		// first place bridges between fillages
 		for (const neighbor of village.neighbors.filter((d) => d.type === 'village')) {
@@ -645,7 +703,9 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			map.bridges.push(bridgeEdge);
 		}
 	}
+	console.timeEnd('place bridges');
 
+	console.time('create road graph');
 	const intersectionGraph: { [point: string]: Point[] } = {};
 	for (const edge of diagram.edges.filter((e) => e && e.left && e.left.data && e.right && e.right.data)) {
 		const leftDistrict = getDistrictBySite(edge.left.data);
@@ -664,8 +724,10 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			intersectionGraph[rightKey].push(leftPoint);
 		}
 	}
+	console.timeEnd('create road graph');
 
 	// place roads on Delauney triangulation between villages
+	console.time('determine roads');
 	const mainRoads = createRoads(districts, diagram, intersectionGraph, options);
 	for (const edge of mainRoads) {
 		const voronoiEdge = diagram.edges.filter(Boolean).find((e) => {
@@ -687,21 +749,27 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			right.roads.push(left);
 		}
 	}
+	console.timeEnd('determine roads');
 
 	// determine core and urbanize
+	console.time('urbanize');
 	const coreDistrictChoices = districts
 		.filter((d) => d.rivers.length)
 		.filter((d) => d.neighbors.some((n) => n.type === 'water'));
 	const core = pickRandom(coreDistrictChoices, rng);
 	core.isCore = true;
 	urbanize(core, NUM_URBAN_DISTRICTS);
+	console.timeEnd('urbanize');
 
 	// remove forests next to city and village
+	console.time('deforest');
 	districts
 		.filter((d) => d.type === 'forest')
 		.filter((d) => d.neighbors.some((n) => n.type === 'urban' || n.type === 'village'))
 		.forEach((d) => d.type = 'rural');
+	console.timeEnd('deforest');
 
+	console.time('inset roads, ridges, river');
 	let riversRidgesRoads = riverEdges.concat(ridgeEdges).concat(mainRoads);
 	// remove duplicates
 	riversRidgesRoads = riversRidgesRoads.reduce((acc, cur) => {
@@ -783,7 +851,9 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 			}
 		});
 	}
+	console.timeEnd('inset roads, ridges, river');
 
+	console.time('inset districts');
 	for (const district of districts) {
 		const districtType = district.type;
 
@@ -806,8 +876,12 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 
 		district.name = generateName(district, rng);
 	}
+	console.timeEnd('inset districts');
 
+	console.time('convert to JSON');
 	map.districts = districts.map((d) => d.toJson());
+	console.timeEnd('convert to JSON');
 
+	console.timeEnd('generate map');
 	return map;
 }

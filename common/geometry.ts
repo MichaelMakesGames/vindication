@@ -366,7 +366,7 @@ export interface InsetResult {
 export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: number) {
 	startPoint = polygon.points.find((p) => arePointsEquivalent(p, startPoint));
 	if (!startPoint) {
-		console.warn('Inset failed, could not find startPoint in polygon');
+		// console.warn('Inset failed, could not find startPoint in polygon');
 		return;
 	}
 
@@ -421,7 +421,7 @@ export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: num
 		};
 	}
 	if (!doesLineIntersectPolygon(testEdge, polygon)) {
-		console.warn('Inset failed, neither test edge intersected polygon');
+		// console.warn('Inset failed, neither test edge intersected polygon');
 		return;
 	}
 
@@ -430,11 +430,11 @@ export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: num
 	currentEdge = edges[(polygon.points.indexOf(startPoint) + 1) % polygon.points.length];
 	while (true) {
 		if (edges.length < 3) {
-			console.warn('Inset failed, spliced too many edges search for next intersection');
+			// console.warn('Inset failed, spliced too many edges search for next intersection');
 			return null;
 		}
 		if (currentEdge === edge) {
-			console.warn('Inset failed, ested all edges without success');
+			// console.warn('Inset failed, ested all edges without success');
 			return null;
 		}
 		const intersection = calcLineIntersection(testEdge, currentEdge);
@@ -457,11 +457,11 @@ export function insetPolygonEdge(polygon: Polygon, startPoint: Point, inset: num
 	currentEdge = edges[(edges.indexOf(edge) + edges.length - 1) % edges.length];
 	while (true) {
 		if (edges.length < 3) {
-			console.warn('Inset failed, spliced too many edges search for previous intersection');
+			// console.warn('Inset failed, spliced too many edges search for previous intersection');
 			return;
 		}
 		if (currentEdge === edge) {
-			console.warn('Inset failed, tested all edges without success');
+			// console.warn('Inset failed, tested all edges without success');
 			return;
 		}
 		const intersection = calcLineIntersection(testEdge, currentEdge);
@@ -499,7 +499,7 @@ export function slicePolygon(polygon: Polygon, testEdge: Edge, inset: number = 0
 		return intersection && isIntersectionInEdge(intersection, edge) && {edge, intersection};
 	}).filter(Boolean);
 	if (intersectionResults.length !== 2) {
-		console.warn('split failed, line did not intersect 2 edges');
+		// console.warn('split failed, line did not intersect 2 edges');
 		return null;
 	}
 
