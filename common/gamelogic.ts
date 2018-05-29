@@ -146,6 +146,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			isUrban &&
 			hasRebelPops &&
 			(isRebelPosition || isAdjacentToRebelPosition) &&
+			!hasEffect(state, district, 'organized') &&
 			!hasCheckpoints
 		) {
 			actions.push({
@@ -193,12 +194,24 @@ export function getAvailableActions(role: string, district: District, state: Gam
 
 		if (
 			state.tension.level === 2 &&
+			isUrban &&
 			!hasCheckpoints
 		) {
 			actions.push({
 				district: district.id,
 				id: 'establish_checkpoints',
 				label: 'Establish checkpoints',
+			});
+		}
+
+		if (
+			state.tension.level === 2 &&
+			isUrban
+		) {
+			actions.push({
+				district: district.id,
+				id: 'raid',
+				label: 'Raid!',
 			});
 		}
 	}
@@ -499,6 +512,36 @@ export function processTurn(map: Map, state: GameState): GameState {
 				},
 			});
 			break;
+		}
+
+		case 'raid': {
+			if (state.rebelPosition === authorityTarget.id) {
+				state.victor = 'authority';
+				log.headlines.push({
+					district: authorityTarget.id,
+					text: `Police raid in ${ authorityTarget.name } captures rebel leadership`,
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
+			} else {
+				state.tension.progress += 3;
+				for (const pop of state.pops[authorityTarget.id]) {
+					if (pop.loyalty === 'neutral') {
+						pop.loyalty = 'rebel';
+					}
+					pop.loyaltyVisibleTo.authority = true;
+				}
+				log.headlines.push({
+					district: authorityTarget.id,
+					text: `Attempted raid of rebel headquarters in ${ authorityTarget.name } angers local residents`,
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
+			}
 		}
 	}
 
