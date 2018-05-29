@@ -214,6 +214,17 @@ export function getAvailableActions(role: string, district: District, state: Gam
 				label: 'Raid!',
 			});
 		}
+
+		if (
+			state.tension.level === 2 &&
+			hasEffect(state, district, 'informant')
+		) {
+			actions.push({
+				district: district.id,
+				id: 'arrange_meeting',
+				label: 'Arrange meeting with rebel leader',
+			});
+		}
 	}
 
 	return actions;
@@ -542,6 +553,44 @@ export function processTurn(map: Map, state: GameState): GameState {
 					},
 				});
 			}
+			break;
+		}
+
+		case 'arrange_meeting': {
+			let success = false;
+			for (const neighbor of authorityTarget.neighbors.filter((n) => areDistrictsAdjacent(n, authorityTarget))) {
+				if (state.rebelPosition === neighbor.id) {
+					success = true;
+					log.headlines.push({
+						district: neighbor.id,
+						text: `Informant: your informant managed to arrange a meeting with the rebel leadership in ${ neighbor.name }, but attracted attention doing so`, // tslint:disable-line:max-line-length
+						visibleTo: {
+							authority: true,
+							rebel: false,
+						},
+					});
+				}
+			}
+			if (!success) {
+				log.headlines.push({
+					district: authorityTarget.id,
+					text: `Informant: your informant was unable to arrange a meeting, and worse, attracted attention trying`,
+					visibleTo: {
+						authority: true,
+						rebel: false,
+					},
+				});
+			}
+			log.headlines.push({
+				district: authorityTarget.id,
+				text: `One of our "rebels" in ${ authorityTarget.name } has been asking to meet with you...`,
+				visibleTo: {
+					authority: false,
+					rebel: true,
+				},
+			});
+			getEffect(state, authorityTarget, 'informant').visibleTo.rebel = true;
+			break;
 		}
 	}
 
