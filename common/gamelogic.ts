@@ -88,6 +88,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 	const adjacentDistricts = district.neighbors.filter(filter);
 
 	const isUrban = district.type === 'urban';
+	const hasCheckpoints = hasEffect(state, district, 'checkpoints');
 
 	if (role === 'rebel') {
 		const isRebelPosition = district.id === state.rebelPosition;
@@ -97,7 +98,11 @@ export function getAvailableActions(role: string, district: District, state: Gam
 
 		// Tension Level 1 Actions
 
-		if (isUrban && (isAdjacentToRebelPosition)) {
+		if (
+			isUrban &&
+			isAdjacentToRebelPosition &&
+			!hasCheckpoints
+		) {
 			actions.push({
 				district: district.id,
 				id: 'move',
@@ -105,7 +110,11 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			});
 		}
 
-		if (isUrban && hasNeutralPops) {
+		if (
+			isUrban &&
+			hasNeutralPops &&
+			!hasCheckpoints
+		) {
 			if (hasRebelPops) {
 				actions.push({
 					district: district.id,
@@ -136,7 +145,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			isUrban &&
 			hasRebelPops &&
 			(isRebelPosition || isAdjacentToRebelPosition) &&
-			!hasEffect(state, district, 'checkpoints')
+			!hasCheckpoints
 		) {
 			actions.push({
 				district: district.id,
@@ -146,6 +155,9 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		}
 
 	} else if (role === 'authority') {
+
+		// Tension Level 1 Actions
+
 		if (isUrban) {
 			actions.push({
 				district: district.id,
@@ -159,6 +171,19 @@ export function getAvailableActions(role: string, district: District, state: Gam
 				district: district.id,
 				id: 'plant_informant',
 				label: 'Plant informant',
+			});
+		}
+
+		// Tension Level 2 Actions
+
+		if (
+			state.tension.level === 2 &&
+			!hasCheckpoints
+		) {
+			actions.push({
+				district: district.id,
+				id: 'establish_checkpoints',
+				label: 'Establish checkpoints',
 			});
 		}
 	}
@@ -396,6 +421,27 @@ export function processTurn(map: Map, state: GameState): GameState {
 				});
 				getEffect(state, authorityTarget, 'organized').visibleTo.authority = true;
 			}
+			break;
+		}
+
+		case 'establish_checkpoints': {
+			state.effects[authorityTarget.id].push({
+				id: 'checkpoints',
+				label: 'Checkpoints established',
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+			state.tension.progress += 1;
+			log.headlines.push({
+				district: authorityTarget.id,
+				text: `Police establish checkpoints in ${ authorityTarget.name } in effort to combat rebel menace`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
 			break;
 		}
 	}
