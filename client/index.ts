@@ -3,7 +3,7 @@ import * as io from 'socket.io-client';
 
 import { Action } from '../common/action';
 import { District, DistrictJson } from '../common/district';
-import { areDistrictsAdjacent, getAvailableActions } from '../common/gamelogic';
+import { areDistrictsAdjacent, getAvailableActions, getEffect, hasEffect } from '../common/gamelogic';
 import { GameState } from '../common/gamestate';
 import { arePointsEquivalent, getBBoxCenter } from '../common/geometry';
 import { Map, mapFromJson, MapJson } from '../common/map';
@@ -296,7 +296,7 @@ function setTurn(action: Action) {
 	const district = clientState.map.districts[action.district];
 	clientState.turn = action;
 	d3.select('#turn-marker').remove();
-	d3.select('#overlay').append('circle')
+	d3.select('svg > g').append('circle')
 		.attr('id', 'turn-marker')
 		.attr('r', 20)
 		.attr('cx', getBBoxCenter(district.polygon).x)
@@ -339,13 +339,57 @@ function socketOnGameState(newState: GameState) {
 
 	d3.select('#rebel-position').remove();
 	if (clientState.role === REBEL) {
-		d3.select('#overlay').append('circle')
+		d3.select('svg > g').append('circle')
 			.attr('id', 'rebel-position')
 			.attr('r', 10)
 			.attr('cx', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon).x)
 			.attr('cy', getBBoxCenter(clientState.map.districts[gameState.rebelPosition].polygon).y)
 			.style('fill', 'red')
 			.style('pointer-events', 'none');
+	}
+
+	clientState.overlay.classed('district--patrolled', (d) => hasEffect(gameState, d, 'patrolled'));
+	clientState.overlay.classed('district--checkpoints', (d) => hasEffect(gameState, d, 'checkpoints'));
+	clientState.overlay.classed('district--organized', (d) => {
+		const organizedEffect = getEffect(gameState, d, 'organized');
+		return organizedEffect && organizedEffect.visibleTo[clientState.role];
+	});
+
+	d3.select('text').remove();
+	for (const district of clientState.map.districts) {
+		const informant = getEffect(gameState, district, 'informant');
+		const infiltrator = getEffect(gameState, district, 'infiltrator');
+		const riot = getEffect(gameState, district, 'riot');
+
+		if (
+			(informant && informant.visibleTo[clientState.role]) ||
+			(infiltrator && infiltrator.visibleTo[clientState.role])
+		) {
+			console.log('adding informant icon');
+			d3.select('svg > g').append('text')
+				.style('fill', '#228')
+				.style('font-size', '48pt')
+				.style('font-weight', 'bold')
+				.style('stroke', 'white')
+				.style('dominant-baseline', 'middle')
+				.style('text-anchor', 'middle')
+				.text('👁️')
+				.attr('x', getBBoxCenter(district.polygon).x)
+				.attr('y', getBBoxCenter(district.polygon).y);
+		}
+
+		if (riot) {
+			d3.select('svg > g').append('text')
+				.style('fill', '#822')
+				.style('font-size', '48pt')
+				.style('font-weight', 'bold')
+				.style('stroke', 'white')
+				.style('dominant-baseline', 'middle')
+				.style('text-anchor', 'middle')
+				.text('🔥')
+				.attr('x', getBBoxCenter(district.polygon).x)
+				.attr('y', getBBoxCenter(district.polygon).y);
+		}
 	}
 
 	clientState.overlay.classed(
@@ -406,7 +450,10 @@ function onHeadlineMouseEnter() {
 }
 
 function onHeadlineMouseLeave() {
-	clientState.overlay.classed('selected', (d) => d.id === clientState.selectedDistrict.id);
+	clientState.overlay.classed(
+		'selected',
+		(d) => d.id === (clientState.selectedDistrict && clientState.selectedDistrict.id),
+	);
 	if (clientState.selectedDistrict) {
 		openDistrictBox(clientState.selectedDistrict);
 	} else {

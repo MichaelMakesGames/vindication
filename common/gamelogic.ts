@@ -67,11 +67,11 @@ export function createInitialState(map: Map, seed: number): GameState {
 	return state;
 }
 
-function hasEffect(state: GameState, district: District, effectId: string) {
+export function hasEffect(state: GameState, district: District, effectId: string) {
 	return state.effects[district.id].map((effect) => effect.id).includes(effectId);
 }
 
-function getEffect(state: GameState, district: District, effectId: string) {
+export function getEffect(state: GameState, district: District, effectId: string) {
 	return state.effects[district.id].find((e) => e.id === effectId);
 }
 
