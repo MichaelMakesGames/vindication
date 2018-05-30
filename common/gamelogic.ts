@@ -5,6 +5,7 @@ import { District } from './district';
 import { GameState } from './gamestate';
 import { Headline } from './headline';
 import { Map } from './map';
+import { Pop } from './pop';
 
 export function createInitialState(map: Map, seed: number): GameState {
 	const rng = seedrandom(seed);
@@ -28,19 +29,20 @@ export function createInitialState(map: Map, seed: number): GameState {
 
 	for (const district of map.districts) {
 		state.effects[district.id] = [];
+		state.pops[district.id] = [];
 	}
 
 	const urbanDistricts = map.districts.filter((d) => d.type === 'urban');
 
 	for (const district of urbanDistricts) {
-		const pops = [];
+		const pops = state.pops[district.id];
 		const numPops = 9;
 		const numRebelPops = Math.floor(rng() * 4);
 		const numAuthorityPops = Math.floor(rng() * 4);
 		const numNeutralPops = 9 - numRebelPops - numAuthorityPops;
 
 		for (let i = 0; i < numPops; i++) {
-			const pop = {
+			const pop: Pop = {
 				loyalty: 'neutral',
 				loyaltyVisibleTo: {
 					authority: false,
@@ -57,8 +59,6 @@ export function createInitialState(map: Map, seed: number): GameState {
 			}
 			pops.push(pop);
 		}
-
-		state.pops[district.id] = pops;
 	}
 
 	const rebelStart = urbanDistricts[Math.floor(rng() * urbanDistricts.length)];
@@ -94,8 +94,9 @@ export function getAvailableActions(role: string, district: District, state: Gam
 	if (role === 'rebel') {
 		const isRebelPosition = district.id === state.rebelPosition;
 		const isAdjacentToRebelPosition = adjacentDistricts.some((n) => n.id === state.rebelPosition);
-		const hasNeutralPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'neutral');
-		const hasRebelPops = state.pops[district.id] && state.pops[district.id].some((p) => p.loyalty === 'rebel');
+		const hasAuthorityPops = state.pops[district.id].some((p) => p.loyalty === 'authority');
+		const hasNeutralPops = state.pops[district.id].some((p) => p.loyalty === 'neutral');
+		const hasRebelPops = state.pops[district.id].some((p) => p.loyalty === 'rebel');
 
 		// Tension Level 1 Actions
 
@@ -114,9 +115,14 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		if (
 			isUrban &&
 			hasNeutralPops &&
-			!hasCheckpoints
+			!hasCheckpoints &&
+			!hasEffect(state, district, 'riot')
 		) {
-			if (hasRebelPops) {
+			if (
+				(isRebelPosition || isAdjacentToRebelPosition) &&
+				hasRebelPops &&
+				hasAuthorityPops
+			) {
 				actions.push({
 					district: district.id,
 					id: 'provoke',
@@ -130,12 +136,6 @@ export function getAvailableActions(role: string, district: District, state: Gam
 					id: 'give_speech',
 					label: 'Give speech',
 				});
-			} else {
-				actions.push({
-					district: district.id,
-					id: 'propaganda',
-					label: 'Spread propaganda',
-				});
 			}
 		}
 
@@ -147,6 +147,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			hasRebelPops &&
 			(isRebelPosition || isAdjacentToRebelPosition) &&
 			!hasEffect(state, district, 'organized') &&
+			!hasEffect(state, district, 'riot') &&
 			!hasCheckpoints
 		) {
 			actions.push({
@@ -161,7 +162,7 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			isUrban &&
 			hasRebelPops &&
 			(isRebelPosition || isAdjacentToRebelPosition) &&
-			hasCheckpoints
+			!hasEffect(state, district, 'riot')
 		) {
 			actions.push({
 				district: district.id,
@@ -170,19 +171,39 @@ export function getAvailableActions(role: string, district: District, state: Gam
 			});
 		}
 
+		if (
+			state.tension.level >= 2 &&
+			isUrban &&
+			!hasEffect(state, district, 'riot')
+		) {
+			actions.push({
+				district: district.id,
+				id: 'root_out_infiltrators',
+				label: 'Root out infiltrators',
+			});
+		}
+
 	} else if (role === 'authority') {
 
 		// Tension Level 1 Actions
 
-		if (isUrban) {
+		if (
+			state.tension.level === 1 &&
+			isUrban &&
+			!hasEffect(state, district, 'patrolled')
+		) {
 			actions.push({
 				district: district.id,
 				id: 'patrol',
-				label: 'Send additional patrols',
+				label: 'Establish patrols',
 			});
 		}
 
-		if (isUrban && !hasEffect(state, district, 'informant')) {
+		if (
+			isUrban &&
+			!hasEffect(state, district, 'informant') &&
+			!hasEffect(state, district, 'riot')
+		) {
 			actions.push({
 				district: district.id,
 				id: 'plant_informant',
@@ -195,7 +216,8 @@ export function getAvailableActions(role: string, district: District, state: Gam
 		if (
 			state.tension.level === 2 &&
 			isUrban &&
-			!hasCheckpoints
+			!hasCheckpoints &&
+			!hasEffect(state, district, 'riot')
 		) {
 			actions.push({
 				district: district.id,
@@ -206,7 +228,8 @@ export function getAvailableActions(role: string, district: District, state: Gam
 
 		if (
 			state.tension.level === 2 &&
-			isUrban
+			isUrban &&
+			!hasEffect(state, district, 'riot')
 		) {
 			actions.push({
 				district: district.id,
@@ -217,12 +240,20 @@ export function getAvailableActions(role: string, district: District, state: Gam
 
 		if (
 			state.tension.level === 2 &&
-			hasEffect(state, district, 'informant')
+			hasEffect(state, district, 'infiltrator')
 		) {
 			actions.push({
 				district: district.id,
 				id: 'arrange_meeting',
-				label: 'Arrange meeting with rebel leader',
+				label: 'Infiltrator: ask where the ringleader is',
+			});
+		}
+
+		if (hasEffect(state, district, 'riot')) {
+			actions.push({
+				district: district.id,
+				id: 'pacify_riot',
+				label: 'Put down riot',
 			});
 		}
 	}
@@ -270,35 +301,12 @@ export function processTurn(map: Map, state: GameState): GameState {
 
 	// pre-turn processing
 	for (const district of map.districts) {
-		if (hasEffect(state, district, 'riot')) {
-			state.effects[district.id] = state.effects[district.id].filter((e) => e.id !== 'riot');
-			log.headlines.push({
-				district: district.id,
-				text: `Rioters in ${ district.name } disperse after night of destruction`,
-				visibleTo: {
-					authority: true,
-					rebel: true,
-				},
-			});
-		}
+		// nothing yet
 	}
 
 	switch (state.turns.rebel.id) {
 		case 'move': {
 			state.rebelPosition = rebelTarget.id;
-			break;
-		}
-
-		case 'propaganda': {
-			state.pops[rebelTarget.id].find((p) => p.loyalty === 'neutral').loyalty = 'rebel';
-			log.headlines.push({
-				district: rebelTarget.id,
-				text: `Informant: Your informant reports growing rebel sentiment in ${ rebelTarget.name }`,
-				visibleTo: {
-					authority: true,
-					rebel: false,
-				},
-			});
 			break;
 		}
 
@@ -319,7 +327,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 				if (district !== rebelTarget && hasEffect(state, district, 'informant')) {
 					log.headlines.push({
 						district: district.id,
-						text: `Informant: Your informant reports growing rebel sentiment in ${ district.name }`,
+						text: `Informant: Your informant in ${ district.name } reports that a rebel ringleader gave a speech somewhere nearby`, // tslint:disable-line:max-line-length
 						visibleTo: {
 							authority: true,
 							rebel: false,
@@ -342,6 +350,8 @@ export function processTurn(map: Map, state: GameState): GameState {
 		}
 
 		case 'provoke': {
+			// move rebel leader
+			state.rebelPosition = rebelTarget.id;
 			// split up neutral pops according to current loyalties
 			const pops = state.pops[rebelTarget.id];
 			const numRebelPops = pops.filter((p) => p.loyalty === 'rebel').length;
@@ -381,6 +391,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 		}
 
 		case 'organize': {
+			state.rebelPosition = rebelTarget.id,
 			state.effects[rebelTarget.id].push({
 				id: 'organized',
 				label: 'Rebels organized',
@@ -389,47 +400,133 @@ export function processTurn(map: Map, state: GameState): GameState {
 					rebel: true,
 				},
 			});
+
+			// Informant reports and becomes infiltrator
 			if (hasEffect(state, rebelTarget, 'informant')) {
 				log.headlines.push({
 					district: rebelTarget.id,
-					text: `Informant: Your informant reports that dissedents in ${ rebelTarget.name } are organizing`,
+					text: `Informant: The rebel ringleader has come to organize the dissidents in ${ rebelTarget.name }, and one of your informants secured a position as a local leader`, // tslint:disable-line:max-line-length
+					visibleTo: {
+						authority: true,
+						rebel: false,
+					},
+				});
+				state.effects[rebelTarget.id].push({
+					id: 'infiltrator',
+					label: 'Infiltrator',
 					visibleTo: {
 						authority: true,
 						rebel: false,
 					},
 				});
 			}
+
 			break;
 		}
 
 		case 'riot': {
+			// move rebel
 			state.rebelPosition = rebelTarget.id;
-			state.effects[rebelTarget.id].push({
+
+			// add riot effect and remove all other effects
+			state.effects[rebelTarget.id] = [{
 				id: 'riot',
 				label: 'Rioting',
 				visibleTo: {
 					authority: true,
 					rebel: true,
 				},
-			});
+			}];
+
+			// reveal loyalties
+			for (const pop of state.pops[rebelTarget.id]) {
+				pop.loyaltyVisibleTo.authority = true;
+			}
+
+			// add 1 authority pop to every district
+			for (const district of map.districts) {
+				if (state.pops[district.id].some((p) => p.loyalty === 'neutral')) {
+					const convert = state.pops[district.id].find((p) => p.loyalty === 'neutral');
+					convert.loyalty = 'authority';
+					convert.loyaltyVisibleTo.authority = true;
+					// TODO reveal rebel pops if one can't be converted? trigger additional riots?
+				}
+			}
+
+			// add headline
 			log.headlines.push({
 				district: rebelTarget.id,
-				text: `Riots break out in ${ rebelTarget.name }`,
+				text: `Riots break out in ${ rebelTarget.name }, raising concern across the city`,
 				visibleTo: {
 					authority: true,
 					rebel: true,
 				},
 			});
+
+			// raise tension
 			state.tension.progress += 3;
+			break;
+		}
+
+		case 'root_out_infiltrators': {
+			const infiltrator = getEffect(state, rebelTarget, 'infiltrator');
+			if (infiltrator) {
+				// remove infiltrator if it exists
+				state.effects[rebelTarget.id] = state.effects[rebelTarget.id].filter((e) => e.id !== 'infiltrator');
+				log.headlines.push({
+					district: rebelTarget.id,
+					text: `We have found a collaborator in ${ rebelTarget.name }; they won't be a problem anymore`,
+					visibleTo: {
+						authority: false,
+						rebel: true,
+					},
+				});
+				log.headlines.push({
+					district: rebelTarget.id,
+					text: `Our infiltrator in ${ rebelTarget.name } has suddenly gone silent...`,
+					visibleTo: {
+						authority: true,
+						rebel: false,
+					},
+				});
+			} else {
+				// make up to 2 rebel pops neutral if no infiltrator found
+				let pop = state.pops[rebelTarget.id].find((p) => p.loyalty === 'rebel');
+				if (pop) {
+					pop.loyalty = 'neutral';
+				}
+				pop = state.pops[rebelTarget.id].find((p) => p.loyalty === 'rebel');
+				if (pop) {
+					pop.loyalty = 'neutral';
+				}
+				log.headlines.push({
+					district: rebelTarget.id,
+					text: `We found no infiltrators among our ranks in ${ rebelTarget.name }, and our hunt damaged our reputation`,
+					visibleTo: {
+						authority: false,
+						rebel: true,
+					},
+				});
+			}
 			break;
 		}
 	}
 
 	switch (state.turns.authority.id) {
 		case 'patrol': {
+			state.effects[authorityTarget.id].push({
+				id: 'patrolled',
+				label: 'Patrolled',
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+
 			const pops = state.pops[authorityTarget.id];
-			if (!pops.some((p) => p.loyalty === 'neutral')) {
-				// if no pop can be converted, then authority player can figure out that all remaining unknown pops are rebel
+			const neutralPops = pops.filter((p) => p.loyalty === 'neutral');
+			if (neutralPops.length < 2) {
+				// if 2 pops can't be converted, then authority player can figure out that all remaining unknown pops are rebel
 				for (const pop of pops) {
 					pop.loyaltyVisibleTo.authority = true;
 				}
@@ -443,24 +540,6 @@ export function processTurn(map: Map, state: GameState): GameState {
 					},
 				});
 			} else {
-				// move one pop to authority
-				const pop1 = pops.find((p) => p.loyalty === 'neutral');
-				pop1.loyalty = 'authority';
-				pop1.loyaltyVisibleTo.authority = true;
-
-				// move on pop to rebel and make it visible
-				const pop2 = pops.find((p) => p.loyalty === 'neutral');
-				if (pop2) {
-					pop2.loyalty = 'rebel';
-					pop2.loyaltyVisibleTo.authority = true;
-				} else {
-					// if no more neutral pops, make one existing rebel pop visible
-					const rebelPop = pops.find((p) => p.loyalty === 'rebel' && !p.loyaltyVisibleTo.authority);
-					if (rebelPop) {
-						rebelPop.loyaltyVisibleTo.authority = true;
-					}
-				}
-
 				log.headlines.push({
 					district: authorityTarget.id,
 					text: `Mixed reactions to additional police presence in ${ authorityTarget.name }`,
@@ -471,15 +550,40 @@ export function processTurn(map: Map, state: GameState): GameState {
 				});
 			}
 
+			// move two pops to authority
+			const pop1 = pops.find((p) => p.loyalty === 'neutral');
+			if (pop1) {
+				pop1.loyalty = 'authority';
+				pop1.loyaltyVisibleTo.authority = true;
+			}
+			const pop2 = pops.find((p) => p.loyalty === 'neutral');
+			if (pop2) {
+				pop2.loyalty = 'authority';
+				pop2.loyaltyVisibleTo.authority = true;
+			}
+
+			// move on pop to rebel and make it visible
+			const pop3 = pops.find((p) => p.loyalty === 'neutral');
+			if (pop3) {
+				pop3.loyalty = 'rebel';
+				pop3.loyaltyVisibleTo.authority = true;
+			} else {
+				// if no more neutral pops, make one existing rebel pop visible
+				const rebelPop = pops.find((p) => p.loyalty === 'rebel' && !p.loyaltyVisibleTo.authority);
+				if (rebelPop) {
+					rebelPop.loyaltyVisibleTo.authority = true;
+				}
+			}
+
 			// raise tension
-			state.tension.progress += 1;
+			state.tension.progress += 2;
 			break;
 		}
 
 		case 'plant_informant': {
 			state.effects[authorityTarget.id].push({
 				id: 'informant',
-				label: 'informant',
+				label: 'Informant',
 				visibleTo: {
 					authority: true,
 					rebel: false,
@@ -563,7 +667,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 					success = true;
 					log.headlines.push({
 						district: neighbor.id,
-						text: `Informant: your informant managed to arrange a meeting with the rebel leadership in ${ neighbor.name }, but attracted attention doing so`, // tslint:disable-line:max-line-length
+						text: `Infiltrator: your infiltrator has located the rebel ringleader in ${ neighbor.name }, but attracted attention doing so`, // tslint:disable-line:max-line-length
 						visibleTo: {
 							authority: true,
 							rebel: false,
@@ -574,7 +678,7 @@ export function processTurn(map: Map, state: GameState): GameState {
 			if (!success) {
 				log.headlines.push({
 					district: authorityTarget.id,
-					text: `Informant: your informant was unable to arrange a meeting, and worse, attracted attention trying`,
+					text: `Infiltrator: your infiltrator was unable to locate the ringleader, and worse, attracted attention trying`,
 					visibleTo: {
 						authority: true,
 						rebel: false,
@@ -583,13 +687,33 @@ export function processTurn(map: Map, state: GameState): GameState {
 			}
 			log.headlines.push({
 				district: authorityTarget.id,
-				text: `One of our "rebels" in ${ authorityTarget.name } has been asking to meet with you...`,
+				text: `One the local resistance leaders in ${ authorityTarget.name } has been asking about your location...`,
 				visibleTo: {
 					authority: false,
 					rebel: true,
 				},
 			});
-			getEffect(state, authorityTarget, 'informant').visibleTo.rebel = true;
+			getEffect(state, authorityTarget, 'infiltrator').visibleTo.rebel = true;
+			break;
+		}
+
+		case 'pacify_riot': {
+			state.effects[authorityTarget.id] = [{
+				id: 'checkpoints',
+				label: 'Checkpoints established',
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			}];
+			log.headlines.push({
+				district: authorityTarget.id,
+				text: `Authorities break up the riots in ${ authorityTarget.name }, establish checkpoints`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
 			break;
 		}
 	}
@@ -597,6 +721,26 @@ export function processTurn(map: Map, state: GameState): GameState {
 	if (state.tension.progress >= 10) {
 		state.tension.level++;
 		state.tension.progress = 0;
+
+		if (state.tension.level === 2) { // state 2 set up
+			// patrolled districts become checkpoints
+			for (const district of map.districts) {
+				for (const effect of state.effects[district.id]) {
+					if (effect.id === 'patrolled') {
+						effect.id = 'checkpoints';
+						effect.label = 'Checkpoints established';
+						log.headlines.push({
+							district: district.id,
+							text: `With rising tensions, patrols in ${ district.name } have established checkpoints`,
+							visibleTo: {
+								authority: true,
+								rebel: true,
+							},
+						});
+					}
+				}
+			}
+		}
 	}
 
 	state.turns.number++;
