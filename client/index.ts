@@ -358,7 +358,9 @@ function socketOnGameState(newState: GameState) {
 	clientState.overlay.classed('district--authority', (d) => hasEffect(gameState, d, 'authority_controlled'));
 	clientState.overlay.classed('district--contested', (d) => hasEffect(gameState, d, 'contested'));
 
-	d3.select('text').remove();
+	for (const textElement of Array.from(document.querySelectorAll('text'))) {
+		textElement.remove();
+	}
 	for (const district of clientState.map.districts) {
 		const informant = getEffect(gameState, district, 'informant');
 		const infiltrator = getEffect(gameState, district, 'infiltrator');
