@@ -354,12 +354,16 @@ function socketOnGameState(newState: GameState) {
 		const organizedEffect = getEffect(gameState, d, 'organized');
 		return organizedEffect && organizedEffect.visibleTo[clientState.role];
 	});
+	clientState.overlay.classed('district--rebel', (d) => hasEffect(gameState, d, 'rebel_controlled'));
+	clientState.overlay.classed('district--authority', (d) => hasEffect(gameState, d, 'authority_controlled'));
+	clientState.overlay.classed('district--contested', (d) => hasEffect(gameState, d, 'contested'));
 
 	d3.select('text').remove();
 	for (const district of clientState.map.districts) {
 		const informant = getEffect(gameState, district, 'informant');
 		const infiltrator = getEffect(gameState, district, 'infiltrator');
 		const riot = getEffect(gameState, district, 'riot');
+		const mob = getEffect(gameState, district, 'rebel_mob');
 
 		if (
 			(informant && informant.visibleTo[clientState.role]) ||
@@ -378,7 +382,7 @@ function socketOnGameState(newState: GameState) {
 				.attr('y', getBBoxCenter(district.polygon).y);
 		}
 
-		if (riot) {
+		if (riot || mob) {
 			d3.select('svg > g').append('text')
 				.style('fill', '#822')
 				.style('font-size', '48pt')

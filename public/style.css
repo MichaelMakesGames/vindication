@@ -103,6 +103,15 @@ svg {
   stroke: #228;
   stroke-dasharray: 20,10;
 }
+.district--rebel {
+  fill: rgba(255, 0, 0, 0.25);
+}
+.district--authority {
+  fill: rgba(0, 0, 255, 0.25);
+}
+.district--contested {
+  fill: url(#contestedPattern);
+}
 
 .district.selected, .district:hover {
   cursor: pointer;

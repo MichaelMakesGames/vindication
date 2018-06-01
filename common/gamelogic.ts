@@ -75,6 +75,10 @@ export function getEffect(state: GameState, district: District, effectId: string
 	return state.effects[district.id].find((e) => e.id === effectId);
 }
 
+function removeEffect(state: GameState, district: District, effectId: string) {
+	state.effects[district.id] = state.effects[district.id].filter((e) => e.id !== effectId);
+}
+
 export function areDistrictsAdjacent(from: District, to: District) {
 	const river = from.rivers.includes(to);
 	const bridge = from.bridges.includes(to);
@@ -739,6 +743,68 @@ export function processTurn(map: Map, state: GameState): GameState {
 						});
 					}
 				}
+			}
+		}
+	}
+
+	if (state.tension.level === 3) { // stage 3 set up
+		for (const district of map.districts) {
+			const isOrganized = hasEffect(state, district, 'organized');
+			const hasCheckpoints = hasEffect(state, district, 'checkpoints');
+			const hasRiot = hasEffect(state, district, 'riot');
+
+			// all pops revealed
+			for (const pop of state.pops[district.id]) {
+				pop.loyaltyVisibleTo.authority = true;
+			}
+
+			if (hasRiot) { // riots turn into mobs
+				removeEffect(state, district, 'riot');
+				state.effects[district.id].push({
+					id: 'rebel_mob',
+					label: 'Mobs',
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
+			}
+
+			if (isOrganized && !hasCheckpoints) { // organized districts go to rebel control
+				removeEffect(state, district, 'organized');
+				state.effects[district.id].push({
+					id: 'rebel_controlled',
+					label: 'Rebel controlled',
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
+			}
+
+			if (hasCheckpoints && !isOrganized) { // checkpoint districts go to authority control
+				removeEffect(state, district, 'checkpoints');
+				state.effects[district.id].push({
+					id: 'authority_controlled',
+					label: 'Authority controlled',
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
+			}
+
+			if (isOrganized && hasCheckpoints) { // organized and checkpoints become contested
+				removeEffect(state, district, 'organized');
+				removeEffect(state, district, 'checkpoints');
+				state.effects[district.id].push({
+					id: 'contested',
+					label: 'Contested',
+					visibleTo: {
+						authority: true,
+						rebel: true,
+					},
+				});
 			}
 		}
 	}
