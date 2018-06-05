@@ -783,15 +783,15 @@ function generateMap(mapType: MapType, options: Options, rng): MapJson {
 		const copy = geometry.clonePolygon(district.polygon);
 		const edges = geometry.getPolygonEdges(copy);
 		edges.forEach((edge, index) => {
-			for (const road of riversRidgesRoads) {
-				if (geometry.areEdgesEquivalent(edge, road)) {
+			for (const riverRidgeRoad of riversRidgesRoads) {
+				if (geometry.areEdgesEquivalent(edge, riverRidgeRoad)) {
 					if (copy.points.indexOf(edge.p1) !== -1) {
 						let inset: number;
 						let isRoad = false;
-						if (riverEdges.includes(road)) {
+						if (riverEdges.includes(riverRidgeRoad)) {
 							inset = riverWidth / 2 + 3;
-						} else if (ridgeEdges.includes(road)) {
-							inset = 30;
+						} else if (ridgeEdges.includes(riverRidgeRoad)) {
+							inset = 15;
 						} else {
 							isRoad = true;
 							inset = 3;

@@ -79,9 +79,9 @@ svg {
 
 .ridge {
   fill: none;
-  stroke: #888;
-  stroke-width: 50;
-  stroke-dasharray: 3,3;
+  stroke: #864;
+  stroke-width: 30;
+  stroke-dasharray: 5,3;
 }
 
 .district {
