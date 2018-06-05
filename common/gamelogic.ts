@@ -79,6 +79,10 @@ function removeEffect(state: GameState, district: District, effectId: string) {
 	state.effects[district.id] = state.effects[district.id].filter((e) => e.id !== effectId);
 }
 
+function getDistrictsWithEffect(state: GameState, districts: District[], effectId: string): District[] {
+	return districts.filter((d) => state.effects[d.id].some((e) => e.id === effectId));
+}
+
 export function areDistrictsAdjacent(from: District, to: District) {
 	const river = from.rivers.includes(to);
 	const bridge = from.bridges.includes(to);
@@ -722,6 +726,51 @@ export function processTurn(map: Map, state: GameState): GameState {
 		}
 	}
 
+	// post turn simulation
+
+	// rebel mobs kill authority pops and lose steam
+	for (const district of getDistrictsWithEffect(state, map.districts, 'rebel_mob')) {
+		const pops = state.pops[district.id];
+		const authorityPopIndex = pops.findIndex((p) => p.loyalty === 'authority');
+		const rebelPop = pops.find((p) => p.loyalty === 'rebel');
+		if (authorityPopIndex !== -1 && rebelPop) { // if there is an authority pop and a rebel pop
+			// remove authority pop
+			pops.splice(authorityPopIndex, 1);
+			log.headlines.push({
+				district: district.id,
+				text: `Rebel mob butchers loyal citizens of ${ district.name }`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+			// increase loyalty to authority in non mob districts
+			for (const otherDistrict of map.districts.filter((d) => !hasEffect(state, d, 'rebel_mob'))) {
+				const neutralPop = state.pops[otherDistrict.id].find((p) => p.loyalty === 'neutral');
+				if (neutralPop) {
+					neutralPop.loyalty = 'authority';
+				}
+			}
+		}
+		// remove one rebel pop
+		if (rebelPop) {
+			rebelPop.loyalty = 'neutral';
+		}
+		// remove mob if no more rebel pops
+		if (!pops.some((p) => p.loyalty === 'rebel')) {
+			removeEffect(state, district, 'rebel_mob');
+			log.headlines.push({
+				district: district.id,
+				text: `Rebel mob disperses in ${ district.name }`,
+				visibleTo: {
+					authority: true,
+					rebel: true,
+				},
+			});
+		}
+	}
+
+	// increase tension level
 	if (state.tension.progress >= 10) {
 		state.tension.level++;
 		state.tension.progress = 0;
