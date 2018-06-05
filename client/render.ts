@@ -132,7 +132,7 @@ function renderDistrict(district: District, target: Element): void {
 
 	if (district.blockSize && !district.blocks.length) {
 		let queue = [district.polygon];
-		if (district.roadEnds.length) {
+		if (district.roadEnds.length || district.type === 'village') {
 			const roads = district.roadEnds.map((p) => district.originalPolygonPointToPolygonPoint(p)).filter(Boolean);
 			const clip = 10 + Math.random() * 10;
 			queue = geometry.shatterPolygon(district.polygon, district.site);
@@ -194,9 +194,11 @@ function renderDistrict(district: District, target: Element): void {
 			}
 
 			case 'forest': {
-				d3Target.append('polygon')
+				geometry.clipCorners(polygon, 6);
+				d3Target.append('path')
+					.datum(polygon.points)
 					.attr('class', 'forest')
-					.attr('points', polygonToSVGPoints(polygon));
+					.attr('d', fieldLine);
 				break;
 			}
 

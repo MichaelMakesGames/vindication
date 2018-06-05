@@ -87,9 +87,11 @@
 					<feDisplacementMap in2="turbulence" in="SourceGraphic" scale="25" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
 				<feOffset in="displaced" dx="-5" dy="-5"></feOffset></filter>
 			
-				<pattern id="forestPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-					<rect x="0" y="0" width="10" height="10" fill="#6b8a62"></rect>
-					<circle cx="5" cy="5" r="4" fill="#475e41"></circle>
+				<pattern id="forestPattern" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+					<rect x="0" y="0" width="30" height="30" fill="#6b8a62"></rect>
+					<circle cx="10" cy="10" r="6" fill="#475e41"></circle>
+					<circle cx="5" cy="5" r="5" fill="#475e41"></circle>
+					<line x1="10" y1="10" x2="20" y2="20" stroke="#475e41" stroke-width="4"></line>
 				</pattern>
 
 				<pattern id="contestedPattern" x="0" y="0" width="30" height="40" patternTransform="rotate(135)" patternUnits="userSpaceOnUse">
