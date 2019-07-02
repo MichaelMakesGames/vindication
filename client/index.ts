@@ -10,7 +10,7 @@ import { Map, mapFromJson, MapJson } from '../common/map';
 import { Options } from '../common/options';
 import { Pop } from '../common/pop';
 
-import { generate } from './mapgen';
+import { generate } from '../mapgen/mapgen';
 import { polygonToSVGPoints, render, renderPreview } from './render';
 
 const socket = io();
