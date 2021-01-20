@@ -13,7 +13,7 @@
     "line-intersect": "^2.1.1",
     "priorityqueuejs": "^1.0.0",
     "seedrandom": "^2.4.3",
-    "socket.io": "^2.0.4",
+    "socket.io": "^2.4.0",
     "socket.io-client": "^2.0.4",
     "source-map-loader": "^0.2.1",
     "ts-loader": "^2.0.3",
