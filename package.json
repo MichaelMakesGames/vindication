@@ -8,7 +8,7 @@
     "@types/socket.io-client": "^1.4.32",
     "body-parser": "^1.18.2",
     "d3": "^4.7.4",
-    "express": "^4.16.2",
+    "express": "^4.17.3",
     "fast-simplex-noise": "^3.2.0",
     "line-intersect": "^2.1.1",
     "priorityqueuejs": "^1.0.0",
